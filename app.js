@@ -1,3 +1,4 @@
+// 1. SUPABASE SECURITY CONNECTION
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -9,6 +10,10 @@ async function checkUserSession() {
   }
 }
 checkUserSession();
+
+// Setup the broadcasting radio channel on the teacher's side
+const channel = supabase.channel('room_8492');
+channel.subscribe();
 
 // DOM Element Declarations
 const canvas = document.getElementById('teacherCanvas');
@@ -90,6 +95,7 @@ canvas.addEventListener('mouseout', () => {
 
 canvas.addEventListener('mousemove', draw);
 
+// Helper function to track window scaling coordinates
 function getCanvasCoordinates(e) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -107,6 +113,13 @@ function draw(e) {
 
   ctx.lineTo(coords.x, coords.y);
   ctx.stroke();
+
+  // BROADCAST BRUSHSTROKES LIVE TO STUDENTS
+  channel.send({
+    type: 'broadcast',
+    event: 'draw',
+    payload: { x: coords.x, y: coords.y, color: ctx.strokeStyle }
+  });
   
   ctx.beginPath();
   ctx.moveTo(coords.x, coords.y);
@@ -118,18 +131,15 @@ function draw(e) {
 canvas.addEventListener('click', (e) => {
   if (currentTool !== 'text') return;
 
-  // Prevent multiple overlapping inputs from opening simultaneously
   if (document.querySelector('.canvas-text-input')) return;
 
   const coords = getCanvasCoordinates(e);
   const wrapper = canvas.parentElement;
 
-  // Create standard text entry element dynamically
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'canvas-text-input';
   
-  // Position input box accurately relative to viewport bounding box layout offsets
   const wrapperRect = wrapper.getBoundingClientRect();
   input.style.left = `${coords.clientX - wrapperRect.left}px`;
   input.style.top = `${coords.clientY - wrapperRect.top}px`;
@@ -137,14 +147,20 @@ canvas.addEventListener('click', (e) => {
   wrapper.appendChild(input);
   input.focus();
 
-  // Commit text text permanently directly to HTML5 canvas matrix context
   function finalizeText() {
     const textVal = input.value.trim();
     if (textVal) {
       ctx.font = 'bold 20px "Segoe UI", sans-serif';
-      ctx.fillStyle = ctx.strokeStyle; // Match the current brush color choice
+      ctx.fillStyle = ctx.strokeStyle; 
       ctx.textBaseline = 'top';
       ctx.fillText(textVal, coords.x, coords.y);
+
+      // BROADCAST STAMPED TEXT LIVE TO STUDENTS
+      channel.send({
+        type: 'broadcast',
+        event: 'text',
+        payload: { x: coords.x, y: coords.y, text: textVal, color: ctx.strokeStyle }
+      });
     }
     input.remove();
   }
@@ -183,7 +199,6 @@ nextPageBtn.addEventListener('click', () => {
   saveCurrentBoardState();
   currentBoardIndex++;
   
-  // If moving past the end of existing slides, generate a clean sheet
   if (currentBoardIndex >= boardsData.length) {
     boardsData.push(''); 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -191,21 +206,26 @@ nextPageBtn.addEventListener('click', () => {
   } else {
     loadBoardState(currentBoardIndex);
   }
+  // Clear out student views whenever switching sheets
+  channel.send({ type: 'broadcast', event: 'clear' });
 });
 
 prevPageBtn.addEventListener('click', () => {
-  if (currentBoardIndex === 0) return; // Boundary limit check
+  if (currentBoardIndex === 0) return; 
   
   saveCurrentBoardState();
   currentBoardIndex--;
   loadBoardState(currentBoardIndex);
+  // Clear out student views whenever switching sheets
+  channel.send({ type: 'broadcast', event: 'clear' });
 });
 
 clearBtn.addEventListener('click', () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // BROADCAST CANVAS CLEAR COMMAND TO STUDENTS
+  channel.send({ type: 'broadcast', event: 'clear' });
 });
 
-// Initialize first board state in historical tracking array index
 boardsData[0] = canvas.toDataURL();
 updatePaginationUI();
 
@@ -215,13 +235,10 @@ updatePaginationUI();
 const exportBtn = document.getElementById('exportBtn');
 
 exportBtn.addEventListener('click', async () => {
-  // 1. Force save the current active board so edits aren't lost
   saveCurrentBoardState();
 
-  // 2. Access the jsPDF library elements
   const { jsPDF } = window.jspdf;
   
-  // 3. Initialize a landscape document matching your canvas size perfectly
   const pdf = new jsPDF({
     orientation: 'landscape',
     unit: 'px',
@@ -230,28 +247,22 @@ exportBtn.addEventListener('click', async () => {
 
   let pagesAdded = 0;
 
-  // 4. Loop through the stored snapshot arrays
   for (let i = 0; i < boardsData.length; i++) {
     const boardSnapshot = boardsData[i];
     
-    // Only compile pages that have data or aren't completely empty strings
     if (boardSnapshot) {
-      // If it isn't the first page being analyzed, insert a fresh layout slide first
       if (pagesAdded > 0) {
         pdf.addPage([1100, 520], 'landscape');
       }
       
-      // Stamp the whiteboard canvas image directly onto the current PDF page
       pdf.addImage(boardSnapshot, 'PNG', 0, 0, 1100, 520);
       pagesAdded++;
     }
   }
 
-  // 5. Fallback safety check: if everything was blank, just grab the active canvas view
   if (pagesAdded === 0) {
     pdf.addImage(canvas.toDataURL(), 'PNG', 0, 0, 1100, 520);
   }
 
-  // 6. Push the file to the browser to execute download execution
   pdf.save('whiteboard-lesson-session.pdf');
-});into hg
+});

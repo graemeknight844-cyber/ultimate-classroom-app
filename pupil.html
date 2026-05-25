@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pupil View - Classroom App</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #f4f4f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .canvas-container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      border: 1px solid #dcdce6;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background-image: radial-gradient(#e1e1eb 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .status-bar {
+      padding: 10px 20px;
+      background-color: #4a4a68;
+      color: white;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="canvas-container">
+    <div class="status-bar" id="statusBar">Connecting to Teacher's Board...</div>
+    <canvas id="pupilCanvas" width="1100" height="520"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="pupil.js"></script>
+</body>
+</html>
