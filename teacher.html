@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teacher Dashboard - Ultimate Classroom App</title>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="dashboard">
+    
+    <aside class="sidebar">
+      <h2>Menu</h2>
+      <button>New Session</button>
+      <button id="exportBtn">Export Session</button>
+      <button>Share Session</button>
+      <button class="sign-out">Sign Out</button>
+    </aside>
+
+    <main class="main-content">
+      
+      <header class="top-bar">
+        <div class="modes">
+          <button class="active">Whiteboard</button>
+          <button>Quiz</button>
+          <button>Poll</button>
+        </div>
+        <div class="room-info">
+          <span class="join-code">Code: <strong>8492</strong></span>
+          <span class="pupil-count">0/30 Joined</span>
+        </div>
+      </header>
+
+      <section class="teacher-stage">
+        
+        <div class="canvas-wrapper">
+          <div class="tool-bar-vertical">
+            <button class="tool-btn active" id="penToolBtn">Pen</button>
+            <button class="tool-btn" id="textToolBtn">Text</button>
+            <button class="tool-btn" id="imgToolBtn">Img</button>
+            <hr class="tool-divider">
+            <input type="color" id="penColor" value="#333333">
+          </div>
+          <canvas id="teacherCanvas" width="1100" height="520"></canvas>
+        </div>
+        
+        <div class="tools-row">
+          <button id="clearBtn">Clear Board</button>
+          
+          <div class="pagination">
+            <button class="page-btn">&lt;</button>
+            <span class="page-text">Board 1 of 1</span>
+            <button class="page-btn">&gt;</button>
+          </div>
+
+          <div class="timer">Timer: 05:00</div>
+          <button id="freezeBtn">Freeze Class</button>
+        </div>
+
+      </section>
+
+      <section class="pupil-boards">
+        <button class="see-all">See All</button>
+        <div class="mini-board"></div>
+        <div class="mini-board"></div>
+        <div class="mini-board"></div>
+        <div class="mini-board"></div>
+      </section>
+
+    </main>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <script src="app.js"></script>
+</body>
+</html>
