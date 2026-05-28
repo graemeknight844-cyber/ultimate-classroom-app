@@ -1,9 +1,13 @@
+// ==========================================
 // 1. SUPABASE SECURITY & CONNECTION
+// ==========================================
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+// ==========================================
 // 2. DOM ELEMENT DECLARATIONS
+// ==========================================
 const joinScreen = document.getElementById('joinScreen');
 const boardWorkspace = document.getElementById('boardWorkspace');
 const pupilNameInput = document.getElementById('pupilNameInput');
@@ -14,11 +18,12 @@ const canvas = document.getElementById('pupilCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 const statusBar = document.getElementById('statusBar');
 
-// New Student Tool Elements
 const pupilPenColor = document.getElementById('pupilPenColor');
 const pupilClearBtn = document.getElementById('pupilClearBtn');
 
+// ==========================================
 // 3. APPLICATION STATE VARIABLES
+// ==========================================
 let activeRoomCode = "";
 let studentName = "";
 let isDrawing = false;
@@ -31,7 +36,9 @@ if (ctx && pupilPenColor) {
   ctx.strokeStyle = pupilPenColor.value;
 }
 
+// ==========================================
 // 4. LISTEN FOR THE "JOIN CLASS" BUTTON CLICK
+// ==========================================
 if (joinClassBtn) {
   joinClassBtn.addEventListener('click', () => {
     const name = pupilNameInput.value.trim();
@@ -45,27 +52,29 @@ if (joinClassBtn) {
     studentName = name;
     activeRoomCode = roomCode;
 
-    // Phase Switch: Hide login card, show workspace!
     joinScreen.style.display = "none";
     boardWorkspace.style.display = "block";
 
-    // Launch connection
     startLiveConnection(roomCode);
   });
 }
 
-// 5. PUPIL'S PERSONAL DRAWING SYSTEM
+// ==========================================
+// 5. PUPIL'S PERSONAL DRAWING SYSTEM & UTILITIES
+// ==========================================
 if (canvas && ctx) {
   // Mouse Events
   canvas.addEventListener('mousedown', (e) => {
-    if (classIsFrozen) return; // Block drawing if frozen
+    if (classIsFrozen) return; 
     isDrawing = true;
     draw(e);
   });
   canvas.addEventListener('mouseup', () => { 
     isDrawing = false; 
     ctx.beginPath(); 
-    sendBoardSnapshotToTeacher(); // Send snapshot when pen lifts!
+    setTimeout(() => {
+      sendBoardSnapshotToTeacher(); 
+    }, 50);
   });
   canvas.addEventListener('mouseout', () => { 
     isDrawing = false; 
@@ -73,10 +82,10 @@ if (canvas && ctx) {
   });
   canvas.addEventListener('mousemove', draw);
 
-  // Touch Screen Events (Upgraded for iPad Stability)
+  // Touch Screen Events (Upgraded for iPad Stability and Complete Sync)
   canvas.addEventListener('touchstart', (e) => {
     if (classIsFrozen) return;
-    e.preventDefault(); // Lock screen scrolling completely
+    e.preventDefault(); 
     isDrawing = true;
     const touch = e.touches[0];
     draw(touch);
@@ -85,15 +94,18 @@ if (canvas && ctx) {
     e.preventDefault();
     isDrawing = false;
     ctx.beginPath();
-    sendBoardSnapshotToTeacher(); // Send snapshot when finger lifts!
+    setTimeout(() => {
+      sendBoardSnapshotToTeacher(); 
+    }, 50);
   });
   canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault(); // Prevent accidental page drifting
+    e.preventDefault(); 
     const touch = e.touches[0];
     draw(touch);
   });
 }
 
+// Coordinate Translator Engine
 function getCanvasCoordinates(e) {
   if (!canvas) return { x: 0, y: 0 };
   const rect = canvas.getBoundingClientRect();
@@ -103,6 +115,7 @@ function getCanvasCoordinates(e) {
   };
 }
 
+// Vector Drawing Engine
 function draw(e) {
   if (!isDrawing || !ctx || classIsFrozen) return;
   const coords = getCanvasCoordinates(e);
@@ -112,30 +125,32 @@ function draw(e) {
   ctx.moveTo(coords.x, coords.y);
 }
 
-// Change pen color when color picker moves
+// Dynamically track color alterations
 if (pupilPenColor && ctx) {
   pupilPenColor.addEventListener('input', (e) => {
     ctx.strokeStyle = e.target.value;
   });
 }
 
-// Clear local canvas
+// Clear local canvas tool
 if (pupilClearBtn && ctx && canvas) {
   pupilClearBtn.addEventListener('click', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.beginPath();
-    sendBoardSnapshotToTeacher(); // Send an empty snapshot so teacher sees it cleared
+    setTimeout(() => {
+      sendBoardSnapshotToTeacher(); 
+    }, 50);
   });
 }
 
+// ==========================================
 // 6. AUTO-SENDER: PACKS UP THE CANVAS AND SENDS TO TEACHER
+// ==========================================
 function sendBoardSnapshotToTeacher() {
   if (!liveChannel || !canvas) return;
   
-  // Compress canvas directly to PNG format to fix the black background bug
   const snapshotDataUrl = canvas.toDataURL('image/png'); 
 
-  // Send it over the airwaves tagged with their custom name!
   liveChannel.send({
     type: 'broadcast',
     event: 'submit-answer',
@@ -146,7 +161,9 @@ function sendBoardSnapshotToTeacher() {
   });
 }
 
+// ==========================================
 // 7. REAL-TIME LISTENER (Listens to Teacher commands)
+// ==========================================
 function startLiveConnection(roomCode) {
   if (!supabaseClient) return;
 
