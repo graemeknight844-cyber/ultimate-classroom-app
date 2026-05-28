@@ -80,61 +80,67 @@ function handleIncomingStudentAnswer(studentData) {
   let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
 
   if (!liveImg) {
-    // 2. If they DON'T have an image yet, find the next available empty white box slot!
-    const openSlots = Array.from(document.querySelectorAll('.see-all-container + div > div, .classroom-container > div:last-child > div'))
-                           .filter(box => box.children.length === 0 && box !== document.querySelector('button'));
+    // 2. Find all empty slots, explicitly starting with the container directly next to "See All"
+    const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
+    let openSlots = [];
 
-    // Fallback: Find empty white boxes matching your dashboard grid layout
-    const fallbackSlots = Array.from(document.querySelectorAll('div[style*="background-color: rgb(255, 255, 255)"], div')).filter(el => {
-      const style = window.getComputedStyle(el);
-      return style.backgroundColor === "rgb(255, 255, 255)" && 
-             (el.offsetWidth > 100 && el.offsetHeight > 80 && el.children.length === 0);
-    });
+    if (seeAllBtn && seeAllBtn.parentElement) {
+      // Collect the adjacent sibling boxes right next to the button first
+      openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
+                       .filter(box => box.children.length === 0 && box !== seeAllBtn);
+    }
 
-    const bestSlot = openSlots.length > 0 ? openSlots[0] : (fallbackSlots.length > 0 ? fallbackSlots[0] : null);
+    // Fallback: collect any other empty dashboard boxes if the immediate layout is full
+    if (openSlots.length === 0) {
+      openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div'))
+                       .filter(box => box.children.length === 0 && box.offsetWidth > 50);
+    }
+
+    const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
 
     if (bestSlot) {
-      // FORCE CLEAN GRID STYLING ON THE HOUSING CONTAINER BOX
+      // Set relative positioning on the parent so the banner can pin perfectly to the bottom edge
       bestSlot.style.position = "relative";
-      bestSlot.style.display = "grid";
-      bestSlot.style.gridTemplateRows = "1fr auto"; // Strictly forces 1 row for image, 1 row for text label
-      bestSlot.style.alignItems = "stretch";
-      bestSlot.style.overflow = "hidden";
+      bestSlot.style.display = "block";
+      bestSlot.style.overflow = "hidden"; // Clips the banner inside the box boundaries
       bestSlot.style.cursor = "pointer";
       bestSlot.style.border = "2px solid #dcdce6";
-      bestSlot.style.minHeight = "100px"; // Preserves structural sizing thresholds
+      bestSlot.style.backgroundColor = "#ffffff";
 
-      // 3. Create the inner thumbnail image inside the pre-existing white box slot
+      // 3. Create the inner thumbnail image
       liveImg = document.createElement('img');
       liveImg.id = `thumb-img-${safeNameId}`;
       liveImg.className = "student-thumb-src";
       liveImg.style.width = "100%";
-      liveImg.style.height = "75px"; // Explicit structural height assignment
+      liveImg.style.height = "100%";
       liveImg.style.objectFit = "contain";
-      liveImg.style.backgroundColor = "#ffffff"; 
+      liveImg.style.display = "block";
 
-      // 4. Create the stylized student label overlay bar
+      // 4. RESTORED: Classic dark grey banner strip with white text
       nameLabel = document.createElement('div');
       nameLabel.id = `thumb-name-${safeNameId}`;
       nameLabel.textContent = studentData.name;
       nameLabel.style.width = "100%";
-      nameLabel.style.backgroundColor = "#4a4a68";
-      nameLabel.style.color = "#ffffff";
+      nameLabel.style.backgroundColor = "#4c4c5e"; // Classic slate/grey background banner
+      nameLabel.style.color = "#ffffff"; // Crisp white writing
       nameLabel.style.fontSize = "12px";
       nameLabel.style.fontWeight = "bold";
       nameLabel.style.textAlign = "center";
-      nameLabel.style.padding = "5px 0";
-      nameLabel.style.alignSelf = "end"; // Pins text layout exactly to the basement line edge
+      nameLabel.style.padding = "4px 0";
+      nameLabel.style.position = "absolute";
+      nameLabel.style.bottom = "0"; // Locked perfectly to the floor edge of the thumbnail
+      nameLabel.style.left = "0";
+      nameLabel.style.boxSizing = "border-box";
+      nameLabel.style.zIndex = "10"; // Ensures it sits safely on top of the image canvas layer
 
-      // Assemble inside your existing layout block!
+      // Assemble components inside the whiteboard box card layout
       bestSlot.appendChild(liveImg);
       bestSlot.appendChild(nameLabel);
 
-      // FIXED CLICK TRIGGER: Always extracts the LATEST live data URL image stream from the DOM element
+      // CLICK PROJECTION ENGINE: Extracts the current multi-stroke canvas data URL
       bestSlot.addEventListener('click', () => {
         if (!ctx || !canvas) return;
         
-        // Target the specific image inside THIS clicked slot
         const currentThumb = bestSlot.querySelector('.student-thumb-src');
         if (!currentThumb || !currentThumb.src) return;
 
@@ -144,12 +150,11 @@ function handleIncomingStudentAnswer(studentData) {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
         };
-        zoomImg.src = currentThumb.src; // Grabs the updated multi-stroke image source!
+        zoomImg.src = currentThumb.src;
       });
     } else {
-      // Ultimate fallback card generation if grid divs are missing
-      console.warn("No pre-existing empty slots found. Appending dynamically.");
-      const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
+      // Ultimate fallback card generation if grid divs are entirely missing
+      console.warn("No pre-existing empty slots found. Appending dynamically next to See All.");
       if (seeAllBtn && seeAllBtn.parentElement) {
         const fallbackCard = document.createElement('div');
         fallbackCard.style.width = "140px";
@@ -159,6 +164,7 @@ function handleIncomingStudentAnswer(studentData) {
         fallbackCard.style.borderRadius = "8px";
         fallbackCard.style.cursor = "pointer";
         fallbackCard.style.position = "relative";
+        fallbackCard.style.overflow = "hidden";
         
         const fbImg = document.createElement('img');
         fbImg.id = `thumb-img-${safeNameId}`;
@@ -168,7 +174,21 @@ function handleIncomingStudentAnswer(studentData) {
         fbImg.style.objectFit = "contain";
         fallbackCard.appendChild(fbImg);
         
-        // FIXED FALLBACK CLICK TRIGGER
+        const fbLabel = document.createElement('div');
+        fbLabel.id = `thumb-name-${safeNameId}`;
+        fbLabel.textContent = studentData.name;
+        fbLabel.style.width = "100%";
+        fbLabel.style.backgroundColor = "#4c4c5e";
+        fbLabel.style.color = "#ffffff";
+        fbLabel.style.fontSize = "12px";
+        fbLabel.style.fontWeight = "bold";
+        fbLabel.style.textAlign = "center";
+        fbLabel.style.padding = "4px 0";
+        fbLabel.style.position = "absolute";
+        fbLabel.style.bottom = "0";
+        fbLabel.style.left = "0";
+        fallbackCard.appendChild(fbLabel);
+        
         fallbackCard.addEventListener('click', () => {
           if (!ctx || !canvas) return;
           const currentThumb = fallbackCard.querySelector('.student-thumb-src');
