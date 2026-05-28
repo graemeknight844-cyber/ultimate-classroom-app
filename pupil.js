@@ -1,64 +1,111 @@
+// 1. SUPABASE SECURITY & CONNECTION
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// 2. DOM ELEMENT DECLARATIONS
+const joinScreen = document.getElementById('joinScreen');
+const boardWorkspace = document.getElementById('boardWorkspace');
+const pupilNameInput = document.getElementById('pupilNameInput');
+const roomCodeInput = document.getElementById('roomCodeInput');
+const joinClassBtn = document.getElementById('joinClassBtn');
+
 const canvas = document.getElementById('pupilCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas ? canvas.getContext('2d') : null;
 const statusBar = document.getElementById('statusBar');
 
-ctx.lineWidth = 4;
-ctx.lineCap = 'round';
+if (ctx) {
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+}
 
-const channel = supabase.channel('room_8492', {
-  config: { broadcast: { self: false } } 
-});
+// Keep track of the room code globally so errors/status bars can read it
+let activeRoomCode = "";
 
-channel
-  .on('broadcast', { event: 'draw' }, ({ payload }) => {
-    ctx.strokeStyle = payload.color;
-    ctx.lineTo(payload.x, payload.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(payload.x, payload.y);
-  })
-  .on('broadcast', { event: 'image-drop' }, ({ payload }) => {
-    const studentImg = new Image();
-    studentImg.onload = () => {
-      ctx.drawImage(studentImg, payload.x, payload.y, payload.width, payload.height);
-    };
-    studentImg.src = payload.dataUrl;
-  })
-  .on('broadcast', { event: 'clear' }, () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.beginPath(); 
-  })
-  .on('broadcast', { event: 'text' }, ({ payload }) => {
-    ctx.font = 'bold 20px "Segoe UI", sans-serif';
-    ctx.fillStyle = payload.color;
-    ctx.textBaseline = 'top';
-    ctx.fillText(payload.text, payload.x, payload.y);
-    ctx.beginPath();
-  })
-  .on('broadcast', { event: 'timer-tick' }, ({ payload }) => {
-    const mins = Math.floor(payload.seconds / 60).toString().padStart(2, '0');
-    const secs = (payload.seconds % 60).toString().padStart(2, '0');
-    statusBar.textContent = `Live Lesson - Time Remaining: ${mins}:${secs}`;
-  })
-  .on('broadcast', { event: 'freeze-state' }, ({ payload }) => {
-    if (payload.isFrozen) {
-      statusBar.textContent = "CLASSROOM FROZEN BY TEACHER";
-      statusBar.style.backgroundColor = "#ff9999";
-      canvas.style.opacity = "0.2"; 
-    } else {
-      statusBar.textContent = "Connected Live to Room 8492";
-      statusBar.style.backgroundColor = "#BFEA7C";
-      canvas.style.opacity = "1.0";
+// 3. LISTEN FOR THE "JOIN CLASS" BUTTON CLICK
+if (joinClassBtn) {
+  joinClassBtn.addEventListener('click', () => {
+    const pupilName = pupilNameInput.value.trim();
+    const roomCode = roomCodeInput.value.trim();
+
+    // Check if the student actually filled out the boxes
+    if (!pupilName || !roomCode) {
+      alert("Please enter both your name and the room code!");
+      return;
     }
-  })
-  .subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      statusBar.textContent = "Connected Live to Room 8492";
-      statusBar.style.backgroundColor = "#BFEA7C"; 
-      statusBar.style.color = "#333";
-    }
+
+    activeRoomCode = roomCode;
+
+    // Phase Switch: Hide the login card, reveal the live whiteboard workspace!
+    joinScreen.style.display = "none";
+    boardWorkspace.style.display = "block";
+
+    // Launch the real-time radio connection using their custom room code
+    startLiveConnection(roomCode);
   });
+}
+
+// 4. REAL-TIME BROADCAST ENGINE (Wrapped securely in a function)
+function startLiveConnection(roomCode) {
+  // Instead of hardcoding 'room_8492', it dynamically hooks into whatever the student typed!
+  const channel = supabase.channel(`room_${roomCode}`, {
+    config: { broadcast: { self: false } } 
+  });
+
+  channel
+    .on('broadcast', { event: 'draw' }, ({ payload }) => {
+      if (!ctx) return;
+      ctx.strokeStyle = payload.color;
+      ctx.lineTo(payload.x, payload.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(payload.x, payload.y);
+    })
+    .on('broadcast', { event: 'image-drop' }, ({ payload }) => {
+      if (!ctx) return;
+      const studentImg = new Image();
+      studentImg.onload = () => {
+        ctx.drawImage(studentImg, payload.x, payload.y, payload.width, payload.height);
+      };
+      studentImg.src = payload.dataUrl;
+    })
+    .on('broadcast', { event: 'clear' }, () => {
+      if (!ctx || !canvas) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath(); 
+    })
+    .on('broadcast', { event: 'text' }, ({ payload }) => {
+      if (!ctx) return;
+      ctx.font = 'bold 20px "Segoe UI", sans-serif';
+      ctx.fillStyle = payload.color;
+      ctx.textBaseline = 'top';
+      ctx.fillText(payload.text, payload.x, payload.y);
+      ctx.beginPath();
+    })
+    .on('broadcast', { event: 'timer-tick' }, ({ payload }) => {
+      if (!statusBar) return;
+      const mins = Math.floor(payload.seconds / 60).toString().padStart(2, '0');
+      const secs = (payload.seconds % 60).toString().padStart(2, '0');
+      statusBar.textContent = `Live Lesson - Time Remaining: ${mins}:${secs}`;
+    })
+    .on('broadcast', { event: 'freeze-state' }, ({ payload }) => {
+      if (!statusBar || !canvas) return;
+      if (payload.isFrozen) {
+        statusBar.textContent = "CLASSROOM FROZEN BY TEACHER";
+        statusBar.style.backgroundColor = "#ff9999";
+        canvas.style.opacity = "0.2"; 
+      } else {
+        statusBar.textContent = `Connected Live to Room ${activeRoomCode}`;
+        statusBar.style.backgroundColor = "#BFEA7C";
+        canvas.style.opacity = "1.0";
+      }
+    })
+    .subscribe((status) => {
+      if (!statusBar) return;
+      if (status === 'SUBSCRIBED') {
+        statusBar.textContent = `Connected Live to Room ${activeRoomCode}`;
+        statusBar.style.backgroundColor = "#BFEA7C"; 
+        statusBar.style.color = "#333";
+      }
+    });
+}

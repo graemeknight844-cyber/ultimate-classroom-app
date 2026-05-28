@@ -25,7 +25,51 @@
       border-radius: 8px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.05);
       border: 1px solid #dcdce6;
+      width: 100%;
+      max-width: 1140px;
     }
+    
+    /* STYLE FOR THE GATEKEEPER JOIN CARD */
+    .join-card {
+      max-width: 400px;
+      margin: 40px auto;
+      text-align: center;
+      padding: 20px;
+    }
+    .join-card h2 {
+      margin-bottom: 20px;
+      color: #4a4a68;
+    }
+    .join-card input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 2px solid #e1e1eb;
+      border-radius: 6px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .join-card input:focus {
+      border-color: #4a4a68;
+    }
+    .join-card button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4a4a68;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .join-card button:hover {
+      background-color: #373751;
+    }
+
+    /* WHITEBOARD INTERFACE STYLE */
     .status-bar {
       padding: 12px;
       background-color: #4a4a68;
@@ -41,17 +85,29 @@
       background-color: #fff;
       border: 1px solid #e1e1eb;
       border-radius: 6px;
-      /* This matches the teacher's canvas background grid pattern exactly */
       background-image: radial-gradient(#e1e1eb 1px, transparent 1px);
       background-size: 20px 20px;
+      max-width: 100%;
+      height: auto;
     }
   </style>
 </head>
 <body>
 
   <div class="classroom-container">
-    <div class="status-bar" id="statusBar">Connecting to Teacher's Board...</div>
-    <canvas id="pupilCanvas" width="1100" height="520"></canvas>
+    
+    <div id="joinScreen" class="join-card">
+      <h2>Join Your Lesson</h2>
+      <input type="text" id="pupilNameInput" placeholder="Enter your name..." required>
+      <input type="text" id="roomCodeInput" placeholder="Enter 4-digit room code..." required>
+      <button id="joinClassBtn">Join Class</button>
+    </div>
+
+    <div id="boardWorkspace" style="display: none;">
+      <div class="status-bar" id="statusBar">Connecting to Teacher's Board...</div>
+      <canvas id="pupilCanvas" width="1100" height="520"></canvas>
+    </div>
+
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
