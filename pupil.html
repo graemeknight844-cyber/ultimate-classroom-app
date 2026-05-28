@@ -103,8 +103,15 @@
       <button id="joinClassBtn">Join Class</button>
     </div>
 
-    <div id="boardWorkspace" style="display: none;">
+  <div id="boardWorkspace" style="display: none;">
       <div class="status-bar" id="statusBar">Connecting to Teacher's Board...</div>
+      
+      <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+        <span style="font-weight: bold; color: #4a4a68;">Your Tools:</span>
+        <input type="color" id="pupilPenColor" value="#333333" style="border: none; cursor: pointer; width: 40px; height: 30px; border-radius: 4px;">
+        <button id="pupilClearBtn" style="padding: 6px 12px; background: #ffcccc; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: #cc0000;">Clear My Board</button>
+      </div>
+
       <canvas id="pupilCanvas" width="1100" height="520"></canvas>
     </div>
 
