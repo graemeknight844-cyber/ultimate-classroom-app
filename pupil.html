@@ -3,41 +3,53 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pupil View - Classroom App</title>
+  <title>Pupil View - Ultimate Classroom App</title>
   <style>
-    body {
+    * {
+      box-sizing: border-box;
       margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
       background-color: #f4f4f9;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      font-family: 'Segoe UI', sans-serif;
+      color: #333;
     }
-    .canvas-container {
+    .classroom-container {
       background: white;
+      padding: 20px;
       border-radius: 8px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.05);
       border: 1px solid #dcdce6;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-      background-image: radial-gradient(#e1e1eb 1px, transparent 1px);
-      background-size: 20px 20px;
     }
     .status-bar {
-      padding: 10px 20px;
+      padding: 12px;
       background-color: #4a4a68;
       color: white;
       font-weight: bold;
-      font-size: 0.9rem;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      text-align: center;
+      transition: background-color 0.3s;
+    }
+    canvas {
+      display: block;
+      background-color: #fff;
+      border: 1px solid #e1e1eb;
+      border-radius: 6px;
+      /* This matches the teacher's canvas background grid pattern exactly */
+      background-image: radial-gradient(#e1e1eb 1px, transparent 1px);
+      background-size: 20px 20px;
     }
   </style>
 </head>
 <body>
 
-  <div class="canvas-container">
+  <div class="classroom-container">
     <div class="status-bar" id="statusBar">Connecting to Teacher's Board...</div>
     <canvas id="pupilCanvas" width="1100" height="520"></canvas>
   </div>

@@ -1,12 +1,9 @@
 // 1. CONFIGURATION PLACEHOLDERS
-// You will replace these strings once your database instance is active
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";12:02 25/05/2026
+const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
 
 // Initialize the global Supabase Client Engine
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-
 
 // 2. DOM INTERFACE ELEMENTS
 const authForm = document.getElementById('authForm');
@@ -29,7 +26,7 @@ toggleLink.addEventListener('click', (e) => {
 
   if (isSignUpMode) {
     authTitle.textContent = "Teacher Registration";
-    authSubtitle.textContent = "Create an account to host secured sessions";
+    authSubtitle.textContent = "Create an account to host real-time classrooms";
     submitBtn.textContent = "Create Account";
     toggleText.textContent = "Already have an account? ";
     toggleLink.textContent = "Sign In Instead";
@@ -64,7 +61,7 @@ authForm.addEventListener('submit', async (e) => {
       messageBox.textContent = error.message;
     } else {
       messageBox.style.color = "green";
-      messageBox.textContent = "Success! Check your inbox for a confirmation link.";
+      messageBox.textContent = "Success! Account created. You can now Sign In.";
     }
   } else {
     // Execute Authentication Protocol
@@ -78,9 +75,9 @@ authForm.addEventListener('submit', async (e) => {
       messageBox.textContent = error.message;
     } else {
       messageBox.style.color = "green";
-      messageBox.textContent = "Authenticated! Launching dashboard...";
+      messageBox.textContent = "Success! Entering dashboard...";
       
-      // Delays launch briefly so user reads completion prompt
+      // Delays redirection slightly to let user read the success alert state
       setTimeout(() => {
         window.location.href = "teacher.html";
       }, 1000);
