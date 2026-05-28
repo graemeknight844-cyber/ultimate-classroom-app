@@ -67,96 +67,103 @@ if (ctx && colorPicker) {
 }
 
 // ==========================================
-// NEW: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
+// UPGRADED: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
 // ==========================================
 function handleIncomingStudentAnswer(studentData) {
-  // 1. Locate the container row running along the bottom right under the big board
-  // We targets the parent box holding your 'See All' button
-  const seeAllBtn = document.querySelector('button[style*="purple"], button', '#seeAllBtn');
-  const targetRow = seeAllBtn ? seeAllBtn.parentElement : null;
+  // Normalize student name to use as a unique ID for the image/card
+  const safeNameId = studentData.name.replace(/\s+/g, '-');
   
-  if (!targetRow) return;
+  // 1. Look to see if this student already has an active image element somewhere
+  let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
+  let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
 
-  // Make sure the target row can neatly align boxes horizontally
-  targetRow.style.display = "flex";
-  targetRow.style.gap = "15px";
-  targetRow.style.alignItems = "center";
-  targetRow.style.flexWrap = "wrap";
+  if (!liveImg) {
+    // 2. If they DON'T have an image yet, find the next available empty white box slot!
+    // We look for your custom white grid boxes that don't have images inside them yet.
+    const openSlots = Array.from(document.querySelectorAll('.see-all-container + div > div, .classroom-container > div:last-child > div'))
+                           .filter(box => box.children.length === 0 && box !== document.querySelector('button'));
 
-  // Normalize name to use as a valid HTML element ID
-  const elementId = `card-${studentData.name.replace(/\s+/g, '-')}`;
-  let studentCard = document.getElementById(elementId);
-
-  if (!studentCard) {
-    // 2. Create the white box skeleton container
-    studentCard = document.createElement('div');
-    studentCard.id = elementId;
-    
-    // Style matches your layout requirements perfectly
-    studentCard.style.width = "140px";
-    studentCard.style.height = "100px";
-    studentCard.style.backgroundColor = "#ffffff";
-    studentCard.style.border = "2px solid #dcdce6";
-    studentCard.style.borderRadius = "8px";
-    studentCard.style.position = "relative";
-    studentCard.style.display = "flex";
-    studentCard.style.flexDirection = "column";
-    studentCard.style.alignItems = "center";
-    studentCard.style.justifyContent = "center";
-    studentCard.style.overflow = "hidden";
-    studentCard.style.cursor = "pointer";
-    studentCard.style.boxShadow = "0 4px 8px rgba(0,0,0,0.03)";
-    studentCard.style.transition = "transform 0.2s, border-color 0.2s";
-
-    // Hover effect
-    studentCard.onmouseenter = () => { studentCard.style.borderColor = "#4a4a68"; studentCard.style.transform = "scale(1.03)"; };
-    studentCard.onmouseleave = () => { studentCard.style.borderColor = "#dcdce6"; studentCard.style.transform = "scale(1)"; };
-
-    // 3. Create the inner canvas snapshot display image
-    const previewImg = document.createElement('img');
-    previewImg.className = "student-thumb-src";
-    previewImg.style.width = "100%";
-    previewImg.style.height = "80%";
-    previewImg.style.objectFit = "contain";
-    previewImg.style.backgroundImage = "radial-gradient(#f0f0f5 1px, transparent 1px)";
-    previewImg.style.backgroundSize = "10px 10px";
-
-    // 4. Create the stylized label overlay text for student name
-    const nameLabel = document.createElement('div');
-    nameLabel.textContent = studentData.name;
-    nameLabel.style.width = "100%";
-    nameLabel.style.backgroundColor = "#4a4a68";
-    nameLabel.style.color = "#ffffff";
-    nameLabel.style.fontSize = "11px";
-    nameLabel.style.fontWeight = "bold";
-    nameLabel.style.textAlign = "center";
-    nameLabel.style.padding = "3px 0";
-
-    // Assemble components
-    studentCard.appendChild(previewImg);
-    studentCard.appendChild(nameLabel);
-    targetRow.appendChild(studentCard);
-
-    // 5. INTERACTION: Clicking a kid's card projects their answer full-size onto your board!
-    studentCard.addEventListener('click', () => {
-      if (!ctx || !canvas) return;
-      const zoomImg = new Image();
-      zoomImg.onload = () => {
-        saveCurrentBoardState(); // Save whatever you were doing first
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
-      };
-      zoomImg.src = studentData.boardImage;
+    // Fallback: If your layout doesn't use standard divs, find any empty white boxes matching your screenshot layout
+    const fallbackSlots = Array.from(document.querySelectorAll('div[style*="background-color: rgb(255, 255, 255)"], div')).filter(el => {
+      const style = window.getComputedStyle(el);
+      return style.backgroundColor === "rgb(255, 255, 255)" && 
+             style.width === "140px" || (el.offsetWidth > 100 && el.offsetHeight > 80 && el.children.length === 0);
     });
+
+    const bestSlot = openSlots.length > 0 ? openSlots[0] : (fallbackSlots.length > 0 ? fallbackSlots[0] : null);
+
+    if (bestSlot) {
+      // Configure the target empty slot to act as our wrapper
+      bestSlot.style.position = "relative";
+      bestSlot.style.display = "flex";
+      bestSlot.style.flexDirection = "column";
+      bestSlot.style.alignItems = "center";
+      bestSlot.style.justifyContent = "center";
+      bestSlot.style.overflow = "hidden";
+      bestSlot.style.cursor = "pointer";
+      bestSlot.style.border = "2px solid #dcdce6";
+
+      // 3. Create the inner thumbnail image inside the pre-existing white box slot
+      liveImg = document.createElement('img');
+      liveImg.id = `thumb-img-${safeNameId}`;
+      liveImg.className = "student-thumb-src";
+      liveImg.style.width = "100%";
+      liveImg.style.height = "75%";
+      liveImg.style.objectFit = "contain";
+      liveImg.style.backgroundColor = "#ffffff"; // Enforces clean white backdrop canvas conversion
+
+      // 4. Create the stylized student label overlay bar
+      nameLabel = document.createElement('div');
+      nameLabel.id = `thumb-name-${safeNameId}`;
+      nameLabel.textContent = studentData.name;
+      nameLabel.style.width = "100%";
+      nameLabel.style.backgroundColor = "#4a4a68";
+      nameLabel.style.color = "#ffffff";
+      nameLabel.style.fontSize = "11px";
+      nameLabel.style.fontWeight = "bold";
+      nameLabel.style.textAlign = "center";
+      nameLabel.style.padding = "3px 0";
+      nameLabel.style.position = "absolute";
+      nameLabel.style.bottom = "0";
+
+      // Assemble inside your existing layout block!
+      bestSlot.appendChild(liveImg);
+      bestSlot.appendChild(nameLabel);
+
+      // Zoom projection click trigger
+      bestSlot.addEventListener('click', () => {
+        if (!ctx || !canvas) return;
+        const zoomImg = new Image();
+        zoomImg.onload = () => {
+          saveCurrentBoardState();
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+        };
+        zoomImg.src = studentData.boardImage;
+      });
+    } else {
+      // Ultimate fallback: If absolutely no matching empty layout box slot is found, append to parent row container
+      console.warn("No pre-existing empty slots found. Appending dynamically.");
+      const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
+      if (seeAllBtn && seeAllBtn.parentElement) {
+        const fallbackCard = document.createElement('div');
+        fallbackCard.style.width = "140px";
+        fallbackCard.style.height = "100px";
+        fallbackCard.style.backgroundColor = "#ffffff";
+        fallbackCard.style.border = "2px solid #dcdce6";
+        fallbackCard.style.borderRadius = "8px";
+        // Create inner image dynamically...
+        seeAllBtn.parentElement.appendChild(fallbackCard);
+      }
+      return;
+    }
   }
 
-  // 6. Direct data injection ensures fast real-time thumbnail frames
-  const liveImg = studentCard.querySelector('.student-thumb-src');
+  // 5. Update data source image string frame instantly
   if (liveImg) {
     liveImg.src = studentData.boardImage;
   }
 }
-
 // 1. TOOL SELECTION MANAGEMENT
 function setActiveTool(tool, activeBtn) {
   currentTool = tool;

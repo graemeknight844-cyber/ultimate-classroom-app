@@ -130,7 +130,8 @@ function sendBoardSnapshotToTeacher() {
   if (!liveChannel || !canvas) return;
   
   // Compress their canvas into a small thumbnail string image
-  const snapshotDataUrl = canvas.toDataURL('image/jpeg', 0.4); 
+  // CHANGE THIS LINE inside sendBoardSnapshotToTeacher():
+const snapshotDataUrl = canvas.toDataURL('image/png'); // Changed from jpeg to png!
 
   // Send it over the airwaves tagged with their custom name!
   liveChannel.send({
