@@ -1,4 +1,6 @@
+// ============================================================================
 // 1. SUPABASE SECURITY & CONNECTION
+// ============================================================================
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
 
@@ -66,9 +68,9 @@ if (ctx && colorPicker) {
   ctx.strokeStyle = colorPicker.value;
 }
 
-// ==========================================
-// UPGRADED: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
-// ==========================================
+// ============================================================================
+// LIVE UPDATED: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
+// ============================================================================
 function handleIncomingStudentAnswer(studentData) {
   // Normalize student name to use as a unique ID for the image/card
   const safeNameId = studentData.name.replace(/\s+/g, '-');
@@ -79,15 +81,14 @@ function handleIncomingStudentAnswer(studentData) {
 
   if (!liveImg) {
     // 2. If they DON'T have an image yet, find the next available empty white box slot!
-    // We look for your custom white grid boxes that don't have images inside them yet.
     const openSlots = Array.from(document.querySelectorAll('.see-all-container + div > div, .classroom-container > div:last-child > div'))
                            .filter(box => box.children.length === 0 && box !== document.querySelector('button'));
 
-    // Fallback: If your layout doesn't use standard divs, find any empty white boxes matching your screenshot layout
+    // Fallback: Find empty white boxes matching your dashboard grid layout
     const fallbackSlots = Array.from(document.querySelectorAll('div[style*="background-color: rgb(255, 255, 255)"], div')).filter(el => {
       const style = window.getComputedStyle(el);
       return style.backgroundColor === "rgb(255, 255, 255)" && 
-             style.width === "140px" || (el.offsetWidth > 100 && el.offsetHeight > 80 && el.children.length === 0);
+             (el.offsetWidth > 100 && el.offsetHeight > 80 && el.children.length === 0);
     });
 
     const bestSlot = openSlots.length > 0 ? openSlots[0] : (fallbackSlots.length > 0 ? fallbackSlots[0] : null);
@@ -110,7 +111,7 @@ function handleIncomingStudentAnswer(studentData) {
       liveImg.style.width = "100%";
       liveImg.style.height = "75%";
       liveImg.style.objectFit = "contain";
-      liveImg.style.backgroundColor = "#ffffff"; // Enforces clean white backdrop canvas conversion
+      liveImg.style.backgroundColor = "#ffffff"; 
 
       // 4. Create the stylized student label overlay bar
       nameLabel = document.createElement('div');
@@ -130,19 +131,24 @@ function handleIncomingStudentAnswer(studentData) {
       bestSlot.appendChild(liveImg);
       bestSlot.appendChild(nameLabel);
 
-      // Zoom projection click trigger
+      // FIXED CLICK TRIGGER: Always extracts the LATEST live data URL image stream from the DOM element
       bestSlot.addEventListener('click', () => {
         if (!ctx || !canvas) return;
+        
+        // Target the specific image inside THIS clicked slot
+        const currentThumb = bestSlot.querySelector('.student-thumb-src');
+        if (!currentThumb || !currentThumb.src) return;
+
         const zoomImg = new Image();
         zoomImg.onload = () => {
           saveCurrentBoardState();
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
         };
-        zoomImg.src = studentData.boardImage;
+        zoomImg.src = currentThumb.src; // Grabs the updated multi-stroke image source!
       });
     } else {
-      // Ultimate fallback: If absolutely no matching empty layout box slot is found, append to parent row container
+      // Ultimate fallback card generation if grid divs are missing
       console.warn("No pre-existing empty slots found. Appending dynamically.");
       const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
       if (seeAllBtn && seeAllBtn.parentElement) {
@@ -152,19 +158,47 @@ function handleIncomingStudentAnswer(studentData) {
         fallbackCard.style.backgroundColor = "#ffffff";
         fallbackCard.style.border = "2px solid #dcdce6";
         fallbackCard.style.borderRadius = "8px";
-        // Create inner image dynamically...
+        fallbackCard.style.cursor = "pointer";
+        fallbackCard.style.position = "relative";
+        
+        const fbImg = document.createElement('img');
+        fbImg.id = `thumb-img-${safeNameId}`;
+        fbImg.className = "student-thumb-src";
+        fbImg.style.width = "100%";
+        fbImg.style.height = "100%";
+        fbImg.style.objectFit = "contain";
+        fallbackCard.appendChild(fbImg);
+        
+        // FIXED FALLBACK CLICK TRIGGER
+        fallbackCard.addEventListener('click', () => {
+          if (!ctx || !canvas) return;
+          const currentThumb = fallbackCard.querySelector('.student-thumb-src');
+          if (!currentThumb || !currentThumb.src) return;
+
+          const zoomImg = new Image();
+          zoomImg.onload = () => {
+            saveCurrentBoardState();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+          };
+          zoomImg.src = currentThumb.src;
+        });
+
         seeAllBtn.parentElement.appendChild(fallbackCard);
+        liveImg = fbImg;
       }
-      return;
     }
   }
 
-  // 5. Update data source image string frame instantly
+  // 5. Update data source image string frame instantly with every single incoming stroke
   if (liveImg) {
     liveImg.src = studentData.boardImage;
   }
 }
-// 1. TOOL SELECTION MANAGEMENT
+
+// ============================================================================
+// 2. TOOL SELECTION MANAGEMENT
+// ============================================================================
 function setActiveTool(tool, activeBtn) {
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -189,7 +223,9 @@ if (colorPicker && ctx) {
   });
 }
 
-// 2. RENDERING ENGINE (PEN DRAWING)
+// ============================================================================
+// 3. RENDERING ENGINE (PEN DRAWING)
+// ============================================================================
 if (canvas && ctx) {
   canvas.addEventListener('mousedown', (e) => {
     if (currentTool !== 'pen') return;
@@ -226,7 +262,9 @@ function draw(e) {
   ctx.moveTo(coords.x, coords.y);
 }
 
-// 3. INTERACTIVE CANVAS TOOLS (TEXT & IMAGES)
+// ============================================================================
+// 4. INTERACTIVE CANVAS TOOLS (TEXT & IMAGES)
+// ============================================================================
 function renderAndBroadcastImage(file, x, y) {
   if (!ctx || !canvas || !channel) return;
   const reader = new FileReader();
@@ -312,7 +350,9 @@ if (canvas) {
   });
 }
 
-// 4. MULTI-BOARD SLIDE PRESENTATION LOGIC
+// ============================================================================
+// 5. MULTI-BOARD SLIDE PRESENTATION LOGIC
+// ============================================================================
 function updatePaginationUI() {
   if (pageText) pageText.textContent = `Board ${currentBoardIndex + 1} of ${Math.max(boardsData.length, 1)}`;
 }
@@ -362,7 +402,9 @@ if (clearBtn) {
 if (canvas) boardsData[0] = canvas.toDataURL();
 updatePaginationUI();
 
-// 5. UTILITY CONTROLS (LIVE TIMER, FREEZE & SIGN OUT)
+// ============================================================================
+// 6. UTILITY CONTROLS (LIVE TIMER, FREEZE & SIGN OUT)
+// ============================================================================
 function formatTimerDisplay(seconds) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
   const secs = (seconds % 60).toString().padStart(2, '0');
@@ -418,7 +460,9 @@ if (signOutBtn) {
   });
 }
 
-// 6. PDF GENERATION ENGINE
+// ============================================================================
+// 7. PDF GENERATION ENGINE
+// ============================================================================
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
