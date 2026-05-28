@@ -93,13 +93,13 @@ function handleIncomingStudentAnswer(studentData) {
 
     const bestSlot = openSlots.length > 0 ? openSlots[0] : (fallbackSlots.length > 0 ? fallbackSlots[0] : null);
 
-    if (bestSlot) {
+   if (bestSlot) {
       // Configure the target empty slot to act as our wrapper
       bestSlot.style.position = "relative";
       bestSlot.style.display = "flex";
       bestSlot.style.flexDirection = "column";
       bestSlot.style.alignItems = "center";
-      bestSlot.style.justifyContent = "center";
+      bestSlot.style.justifyContent = "space-between"; // Pushes image up and text down cleanly
       bestSlot.style.overflow = "hidden";
       bestSlot.style.cursor = "pointer";
       bestSlot.style.border = "2px solid #dcdce6";
@@ -109,7 +109,7 @@ function handleIncomingStudentAnswer(studentData) {
       liveImg.id = `thumb-img-${safeNameId}`;
       liveImg.className = "student-thumb-src";
       liveImg.style.width = "100%";
-      liveImg.style.height = "75%";
+      liveImg.style.height = "78%"; // Constrains image height slightly to leave perfect room for text
       liveImg.style.objectFit = "contain";
       liveImg.style.backgroundColor = "#ffffff"; 
 
@@ -123,9 +123,8 @@ function handleIncomingStudentAnswer(studentData) {
       nameLabel.style.fontSize = "11px";
       nameLabel.style.fontWeight = "bold";
       nameLabel.style.textAlign = "center";
-      nameLabel.style.padding = "3px 0";
-      nameLabel.style.position = "absolute";
-      nameLabel.style.bottom = "0";
+      nameLabel.style.padding = "4px 0";
+      // REMOVED absolute positioning to prevent the label from slipping out of visual boundaries!
 
       // Assemble inside your existing layout block!
       bestSlot.appendChild(liveImg);
