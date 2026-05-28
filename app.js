@@ -93,23 +93,23 @@ function handleIncomingStudentAnswer(studentData) {
 
     const bestSlot = openSlots.length > 0 ? openSlots[0] : (fallbackSlots.length > 0 ? fallbackSlots[0] : null);
 
-   if (bestSlot) {
-      // Configure the target empty slot to act as our wrapper
+    if (bestSlot) {
+      // FORCE CLEAN GRID STYLING ON THE HOUSING CONTAINER BOX
       bestSlot.style.position = "relative";
-      bestSlot.style.display = "flex";
-      bestSlot.style.flexDirection = "column";
-      bestSlot.style.alignItems = "center";
-      bestSlot.style.justifyContent = "space-between"; // Pushes image up and text down cleanly
+      bestSlot.style.display = "grid";
+      bestSlot.style.gridTemplateRows = "1fr auto"; // Strictly forces 1 row for image, 1 row for text label
+      bestSlot.style.alignItems = "stretch";
       bestSlot.style.overflow = "hidden";
       bestSlot.style.cursor = "pointer";
       bestSlot.style.border = "2px solid #dcdce6";
+      bestSlot.style.minHeight = "100px"; // Preserves structural sizing thresholds
 
       // 3. Create the inner thumbnail image inside the pre-existing white box slot
       liveImg = document.createElement('img');
       liveImg.id = `thumb-img-${safeNameId}`;
       liveImg.className = "student-thumb-src";
       liveImg.style.width = "100%";
-      liveImg.style.height = "78%"; // Constrains image height slightly to leave perfect room for text
+      liveImg.style.height = "75px"; // Explicit structural height assignment
       liveImg.style.objectFit = "contain";
       liveImg.style.backgroundColor = "#ffffff"; 
 
@@ -120,11 +120,11 @@ function handleIncomingStudentAnswer(studentData) {
       nameLabel.style.width = "100%";
       nameLabel.style.backgroundColor = "#4a4a68";
       nameLabel.style.color = "#ffffff";
-      nameLabel.style.fontSize = "11px";
+      nameLabel.style.fontSize = "12px";
       nameLabel.style.fontWeight = "bold";
       nameLabel.style.textAlign = "center";
-      nameLabel.style.padding = "4px 0";
-      // REMOVED absolute positioning to prevent the label from slipping out of visual boundaries!
+      nameLabel.style.padding = "5px 0";
+      nameLabel.style.alignSelf = "end"; // Pins text layout exactly to the basement line edge
 
       // Assemble inside your existing layout block!
       bestSlot.appendChild(liveImg);
@@ -247,6 +247,7 @@ function getCanvasCoordinates(e) {
   };
 }
 
+// Vector Drawing Engine
 function draw(e) {
   if (!isDrawing || currentTool !== 'pen' || !ctx || !channel) return;
   const coords = getCanvasCoordinates(e);
