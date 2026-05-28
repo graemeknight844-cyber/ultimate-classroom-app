@@ -73,19 +73,22 @@ if (canvas && ctx) {
   });
   canvas.addEventListener('mousemove', draw);
 
-  // Touch Screen Events (For Phones/Tablets!)
+  // Touch Screen Events (Upgraded for iPad Stability)
   canvas.addEventListener('touchstart', (e) => {
     if (classIsFrozen) return;
+    e.preventDefault(); // Lock screen scrolling completely
     isDrawing = true;
     const touch = e.touches[0];
     draw(touch);
   });
-  canvas.addEventListener('touchend', () => {
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
     isDrawing = false;
     ctx.beginPath();
     sendBoardSnapshotToTeacher(); // Send snapshot when finger lifts!
   });
   canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault(); // Prevent accidental page drifting
     const touch = e.touches[0];
     draw(touch);
   });
@@ -129,9 +132,8 @@ if (pupilClearBtn && ctx && canvas) {
 function sendBoardSnapshotToTeacher() {
   if (!liveChannel || !canvas) return;
   
-  // Compress their canvas into a small thumbnail string image
-  // CHANGE THIS LINE inside sendBoardSnapshotToTeacher():
-const snapshotDataUrl = canvas.toDataURL('image/png'); // Changed from jpeg to png!
+  // Compress canvas directly to PNG format to fix the black background bug
+  const snapshotDataUrl = canvas.toDataURL('image/png'); 
 
   // Send it over the airwaves tagged with their custom name!
   liveChannel.send({
