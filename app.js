@@ -1,9 +1,10 @@
-// 1. SUPABASE SECURITY & ROUTING CONNECTION
+// Only declare SUPABASE once right here!
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 async function checkUserSession() {
+  if (!supabase) return;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     window.location.href = "index.html";
