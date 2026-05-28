@@ -17,7 +17,12 @@ checkUserSession();
 // Setup the broadcasting radio channel on the teacher's side
 const channel = supabaseClient ? supabaseClient.channel('room_8492') : null;
 if (channel) {
-  channel.subscribe();
+  channel
+    .on('broadcast', { event: 'submit-answer' }, ({ payload }) => {
+      // CATCHES LIVE STUDENT SHOW-ME BOARDS
+      handleIncomingStudentAnswer(payload);
+    })
+    .subscribe();
 }
 
 // DOM Element Declarations
@@ -59,6 +64,97 @@ if (ctx && colorPicker) {
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.strokeStyle = colorPicker.value;
+}
+
+// ==========================================
+// NEW: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
+// ==========================================
+function handleIncomingStudentAnswer(studentData) {
+  // 1. Locate the container row running along the bottom right under the big board
+  // We targets the parent box holding your 'See All' button
+  const seeAllBtn = document.querySelector('button[style*="purple"], button', '#seeAllBtn');
+  const targetRow = seeAllBtn ? seeAllBtn.parentElement : null;
+  
+  if (!targetRow) return;
+
+  // Make sure the target row can neatly align boxes horizontally
+  targetRow.style.display = "flex";
+  targetRow.style.gap = "15px";
+  targetRow.style.alignItems = "center";
+  targetRow.style.flexWrap = "wrap";
+
+  // Normalize name to use as a valid HTML element ID
+  const elementId = `card-${studentData.name.replace(/\s+/g, '-')}`;
+  let studentCard = document.getElementById(elementId);
+
+  if (!studentCard) {
+    // 2. Create the white box skeleton container
+    studentCard = document.createElement('div');
+    studentCard.id = elementId;
+    
+    // Style matches your layout requirements perfectly
+    studentCard.style.width = "140px";
+    studentCard.style.height = "100px";
+    studentCard.style.backgroundColor = "#ffffff";
+    studentCard.style.border = "2px solid #dcdce6";
+    studentCard.style.borderRadius = "8px";
+    studentCard.style.position = "relative";
+    studentCard.style.display = "flex";
+    studentCard.style.flexDirection = "column";
+    studentCard.style.alignItems = "center";
+    studentCard.style.justifyContent = "center";
+    studentCard.style.overflow = "hidden";
+    studentCard.style.cursor = "pointer";
+    studentCard.style.boxShadow = "0 4px 8px rgba(0,0,0,0.03)";
+    studentCard.style.transition = "transform 0.2s, border-color 0.2s";
+
+    // Hover effect
+    studentCard.onmouseenter = () => { studentCard.style.borderColor = "#4a4a68"; studentCard.style.transform = "scale(1.03)"; };
+    studentCard.onmouseleave = () => { studentCard.style.borderColor = "#dcdce6"; studentCard.style.transform = "scale(1)"; };
+
+    // 3. Create the inner canvas snapshot display image
+    const previewImg = document.createElement('img');
+    previewImg.className = "student-thumb-src";
+    previewImg.style.width = "100%";
+    previewImg.style.height = "80%";
+    previewImg.style.objectFit = "contain";
+    previewImg.style.backgroundImage = "radial-gradient(#f0f0f5 1px, transparent 1px)";
+    previewImg.style.backgroundSize = "10px 10px";
+
+    // 4. Create the stylized label overlay text for student name
+    const nameLabel = document.createElement('div');
+    nameLabel.textContent = studentData.name;
+    nameLabel.style.width = "100%";
+    nameLabel.style.backgroundColor = "#4a4a68";
+    nameLabel.style.color = "#ffffff";
+    nameLabel.style.fontSize = "11px";
+    nameLabel.style.fontWeight = "bold";
+    nameLabel.style.textAlign = "center";
+    nameLabel.style.padding = "3px 0";
+
+    // Assemble components
+    studentCard.appendChild(previewImg);
+    studentCard.appendChild(nameLabel);
+    targetRow.appendChild(studentCard);
+
+    // 5. INTERACTION: Clicking a kid's card projects their answer full-size onto your board!
+    studentCard.addEventListener('click', () => {
+      if (!ctx || !canvas) return;
+      const zoomImg = new Image();
+      zoomImg.onload = () => {
+        saveCurrentBoardState(); // Save whatever you were doing first
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+      };
+      zoomImg.src = studentData.boardImage;
+    });
+  }
+
+  // 6. Direct data injection ensures fast real-time thumbnail frames
+  const liveImg = studentCard.querySelector('.student-thumb-src');
+  if (liveImg) {
+    liveImg.src = studentData.boardImage;
+  }
 }
 
 // 1. TOOL SELECTION MANAGEMENT
@@ -260,7 +356,6 @@ if (canvas) boardsData[0] = canvas.toDataURL();
 updatePaginationUI();
 
 // 5. UTILITY CONTROLS (LIVE TIMER, FREEZE & SIGN OUT)
-// 5. UTILITY CONTROLS (LIVE TIMER, FREEZE & SIGN OUT)
 function formatTimerDisplay(seconds) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
   const secs = (seconds % 60).toString().padStart(2, '0');
@@ -268,20 +363,17 @@ function formatTimerDisplay(seconds) {
 }
 
 if (timerDisplay) {
-  // Make it look like a clickable button and start as RED (Stopped)
   timerDisplay.style.cursor = "pointer";
   timerDisplay.style.color = "#ff4d4d"; 
   timerDisplay.style.transition = "color 0.3s ease";
 
   timerDisplay.addEventListener('click', () => {
     if (countdownInterval) {
-      // STOPPING THE TIMER
       clearInterval(countdownInterval);
       countdownInterval = null;
-      timerDisplay.style.color = "#ff4d4d"; // Switch back to Red
+      timerDisplay.style.color = "#ff4d4d"; 
     } else {
-      // STARTING THE TIMER
-      timerDisplay.style.color = "#2ecc71"; // Switch to Green
+      timerDisplay.style.color = "#2ecc71"; 
       countdownInterval = setInterval(() => {
         if (totalSeconds > 0) {
           totalSeconds--;
@@ -290,7 +382,7 @@ if (timerDisplay) {
         } else {
           clearInterval(countdownInterval);
           countdownInterval = null;
-          timerDisplay.style.color = "#ff4d4d"; // Reset to Red when done
+          timerDisplay.style.color = "#ff4d4d"; 
           alert("Time is up!");
         }
       }, 1000);
