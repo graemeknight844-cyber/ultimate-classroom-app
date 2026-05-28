@@ -1,7 +1,9 @@
 // 1. SUPABASE SECURITY & CONNECTION
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Changed 'supabase' to 'supabaseClient' to prevent the browser from crashing!
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // 2. DOM ELEMENT DECLARATIONS
 const joinScreen = document.getElementById('joinScreen');
@@ -19,7 +21,6 @@ if (ctx) {
   ctx.lineCap = 'round';
 }
 
-// Keep track of the room code globally so errors/status bars can read it
 let activeRoomCode = "";
 
 // 3. LISTEN FOR THE "JOIN CLASS" BUTTON CLICK
@@ -28,7 +29,6 @@ if (joinClassBtn) {
     const pupilName = pupilNameInput.value.trim();
     const roomCode = roomCodeInput.value.trim();
 
-    // Check if the student actually filled out the boxes
     if (!pupilName || !roomCode) {
       alert("Please enter both your name and the room code!");
       return;
@@ -36,19 +36,20 @@ if (joinClassBtn) {
 
     activeRoomCode = roomCode;
 
-    // Phase Switch: Hide the login card, reveal the live whiteboard workspace!
+    // Phase Switch: Hide login card, show whiteboard workspace!
     joinScreen.style.display = "none";
     boardWorkspace.style.display = "block";
 
-    // Launch the real-time radio connection using their custom room code
+    // Launch connection
     startLiveConnection(roomCode);
   });
 }
 
-// 4. REAL-TIME BROADCAST ENGINE (Wrapped securely in a function)
+// 4. REAL-TIME BROADCAST ENGINE
 function startLiveConnection(roomCode) {
-  // Instead of hardcoding 'room_8492', it dynamically hooks into whatever the student typed!
-  const channel = supabase.channel(`room_${roomCode}`, {
+  if (!supabaseClient) return;
+
+  const channel = supabaseClient.channel(`room_${roomCode}`, {
     config: { broadcast: { self: false } } 
   });
 
