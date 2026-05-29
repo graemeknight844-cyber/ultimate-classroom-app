@@ -46,16 +46,19 @@ const timerDisplay = document.querySelector('.timer');
 const freezeBtn = document.getElementById('freezeBtn');
 const signOutBtn = document.querySelector('.sign-out'); 
 
-// Application State
+// ============================================================================
+// APPLICATION STATE & SESSION HISTORY MEMORY
+// ============================================================================
 let currentTool = 'pen'; 
 let isDrawing = false;
 let classIsFrozen = false;
 let countdownInterval;
 let totalSeconds = 300; 
 
-// Multi-Board Variables
+// Multi-Board Sessional Memory Storage Arrays
 let boardsData = []; 
 let currentBoardIndex = 0;
+let studentSubmissionsHistory = [{}]; // Tracks pupil submittals index-by-index: { 0: { "Alex": "url..." }, 1: { ... } }
 
 if (ctx) {
   ctx.lineWidth = sizeThicknessSlider.value;
@@ -163,73 +166,85 @@ function bakeFloatingObjects() {
 }
 
 // ============================================================================
-// WHITEBOARD DISPLAY SYSTEM
+// LIVE STUDENT BOARD DISTRIBUTION SYSTEM
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
+  // 1. Permanently record answer inside active board's history object for PDF compiler
+  if (!studentSubmissionsHistory[currentBoardIndex]) {
+    studentSubmissionsHistory[currentBoardIndex] = {};
+  }
+  studentSubmissionsHistory[currentBoardIndex][studentData.name] = studentData.boardImage;
+
+  // 2. Pass along to DOM display renderer 
+  renderStudentThumbnailDOM(studentData);
+}
+
+function renderStudentThumbnailDOM(studentData) {
   const safeNameId = studentData.name.replace(/\s+/g, '-');
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
-  let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
 
   if (!liveImg) {
-    const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
-    let openSlots = [];
-
-    if (seeAllBtn && seeAllBtn.parentElement) {
-      openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
-                       .filter(box => box.children.length === 0 && box !== seeAllBtn);
+    // Find empty placeholder box inside dashboard grid
+    const slots = Array.from(document.querySelectorAll('.mini-board'));
+    const emptySlot = slots.find(slot => slot.children.length === 0);
+    
+    let targetTarget = emptySlot;
+    if (!targetTarget) {
+      // Dynamic scaling wrapper if teacher has more than 4 pupils simultaneously active
+      targetTarget = document.createElement('div');
+      targetTarget.className = 'mini-board';
+      document.querySelector('.pupil-boards').appendChild(targetTarget);
     }
-    if (openSlots.length === 0) {
-      openSlots = Array.from(document.querySelectorAll('.classroom-container div'))
-                       .filter(box => box.children.length === 0 && box.offsetWidth > 50);
-    }
-    const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
 
-    if (bestSlot) {
-      bestSlot.style.position = "relative";
-      bestSlot.style.display = "block";
-      bestSlot.style.overflow = "hidden"; 
-      bestSlot.style.cursor = "pointer";
-      bestSlot.style.border = "2px solid #dcdce6";
-      bestSlot.style.backgroundColor = "#ffffff";
+    targetTarget.style.position = "relative";
+    targetTarget.style.display = "block";
+    targetTarget.style.overflow = "hidden"; 
+    targetTarget.style.cursor = "pointer";
 
-      liveImg = document.createElement('img');
-      liveImg.id = `thumb-img-${safeNameId}`;
-      liveImg.style.width = "100%";
-      liveImg.style.height = "100%";
-      liveImg.style.objectFit = "contain";
+    liveImg = document.createElement('img');
+    liveImg.id = `thumb-img-${safeNameId}`;
+    liveImg.style.width = "100%";
+    liveImg.style.height = "100%";
+    liveImg.style.objectFit = "contain";
 
-      nameLabel = document.createElement('div');
-      nameLabel.id = `thumb-name-${safeNameId}`;
-      nameLabel.textContent = studentData.name;
-      nameLabel.style.cssText = "width:100%; background:#4c4c5e; color:#fff; font-size:12px; font-weight:bold; text-align:center; padding:4px 0; position:absolute; bottom:0; left:0; box-sizing:border-box; z-index:10;";
+    const nameLabel = document.createElement('div');
+    nameLabel.id = `thumb-name-${safeNameId}`;
+    nameLabel.textContent = studentData.name;
+    nameLabel.style.cssText = "width:100%; background:#4c4c5e; color:#fff; font-size:12px; font-weight:bold; text-align:center; padding:4px 0; position:absolute; bottom:0; left:0; box-sizing:border-box; z-index:10;";
 
-      bestSlot.appendChild(liveImg);
-      bestSlot.appendChild(nameLabel);
+    targetTarget.appendChild(liveImg);
+    targetTarget.appendChild(nameLabel);
 
-      bestSlot.addEventListener('click', () => {
-        if (!ctx || !canvas) return;
-        const currentThumb = bestSlot.querySelector('img');
-        if (!currentThumb || !currentThumb.src) return;
-
-        const zoomImg = new Image();
-        zoomImg.onload = () => {
-          bakeFloatingObjects();
-          saveCurrentBoardState();
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
-        };
-        zoomImg.src = currentThumb.src;
-      });
-    }
+    targetTarget.addEventListener('click', () => {
+      if (!ctx || !canvas) return;
+      const zoomImg = new Image();
+      zoomImg.onload = () => {
+        bakeFloatingObjects();
+        saveCurrentBoardState();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+      };
+      zoomImg.src = liveImg.src;
+    });
   }
+  
   if (liveImg) { liveImg.src = studentData.boardImage; }
+}
+
+function clearStudentThumbnailsDOM() {
+  document.querySelectorAll('.mini-board').forEach(slot => { slot.innerHTML = ''; });
+  // Drop extra dynamically generated pupil cards back down to original footprint
+  const allMiniBoards = document.querySelectorAll('.mini-board');
+  if (allMiniBoards.length > 4) {
+    for (let i = 4; i < allMiniBoards.length; i++) { allMiniBoards[i].remove(); }
+  }
 }
 
 // ============================================================================
 // TOOL CONTROL SYSTEM
 // ============================================================================
 function setActiveTool(tool, activeBtn) {
-  bakeFloatingObjects(); // Bake current edits down automatically if switching tools
+  bakeFloatingObjects(); 
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
   if (activeBtn) activeBtn.classList.add('active');
@@ -284,6 +299,7 @@ function getCanvasCoordinates(e) {
   };
 }
 
+// Fixed Drawing Core Intercepting Sliders Directly
 function draw(e) {
   if (!isDrawing || (currentTool !== 'pen' && currentTool !== 'rubber') || !ctx) return;
   const coords = getCanvasCoordinates(e);
@@ -382,7 +398,7 @@ function updatePaginationUI() {
 
 function saveCurrentBoardState() { 
   if (!canvas) return;
-  bakeFloatingObjects(); // Bake floating changes down before making the dataURL snapshot
+  bakeFloatingObjects(); 
   boardsData[currentBoardIndex] = canvas.toDataURL(); 
 }
 
@@ -397,6 +413,13 @@ function loadBoardState(index) {
     img.src = boardsData[index];
     img.onload = () => { ctx.drawImage(img, 0, 0); };
   }
+
+  // Swap historical student thumbnail grids dynamically matching the current index page
+  clearStudentThumbnailsDOM();
+  const historicalAnswers = studentSubmissionsHistory[index] || {};
+  Object.keys(historicalAnswers).forEach(name => {
+    renderStudentThumbnailDOM({ name: name, boardImage: historicalAnswers[name] });
+  });
 
   if (channel) {
     channel.send({
@@ -413,7 +436,9 @@ if (nextPageBtn) {
     currentBoardIndex++;
     if (currentBoardIndex >= boardsData.length) {
       boardsData.push(''); 
+      studentSubmissionsHistory.push({}); // Allocate blank submissions map container for the new page slot
       if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      clearStudentThumbnailsDOM();
       updatePaginationUI();
       if (channel) channel.send({ type: 'broadcast', event: 'switch-board', payload: { index: currentBoardIndex } });
     } else {
@@ -433,7 +458,6 @@ if (prevPageBtn) {
 
 if (clearBtn) {
   clearBtn.addEventListener('click', () => {
-    // Wipe floating elements away
     if (canvas) {
       const activeObjects = canvas.parentElement.querySelectorAll('.floating-canvas-object');
       activeObjects.forEach(o => o.remove());
@@ -490,21 +514,95 @@ if (signOutBtn) {
   });
 }
 
-// PDF Export Module integration
+// ============================================================================
+// ENHANCED ADVANCED MULTI-PAGE REPORT BOOKLET EXPORT MODULE
+// ============================================================================
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
-    saveCurrentBoardState();
+    saveCurrentBoardState(); // Lock down last active page items
+    
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
-    let pagesAdded = 0;
+    let isFirstPage = true;
+
     for (let i = 0; i < boardsData.length; i++) {
-      if (boardsData[i]) {
-        if (pagesAdded > 0) { pdf.addPage([1100, 520], 'landscape'); }
-        pdf.addImage(boardsData[i], 'PNG', 0, 0, 1100, 520);
-        pagesAdded++;
+      if (!boardsData[i]) continue;
+
+      // ----------------------------------------------------------------------
+      // PHASE A: PRINT TEACHER BOARD QUESTION PAGE
+      // ----------------------------------------------------------------------
+      if (!isFirstPage) { pdf.addPage([1100, 520], 'landscape'); }
+      isFirstPage = false;
+
+      // Draw Top Brand Title Bar Block
+      pdf.setFillColor(74, 74, 104); // Deep charcoal #4a4a68 matching template
+      pdf.rect(0, 0, 1100, 45, 'F');
+      
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont("Helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.text(`LESSON SLIDE SHEET ${i + 1} - TEACHER QUESTION/TASK`, 30, 28);
+
+      // Append Teacher Canvas Image Vector Drawing
+      pdf.addImage(boardsData[i], 'PNG', 30, 65, 1040, 435);
+
+      // ----------------------------------------------------------------------
+      // PHASE B: COMPLIMENTARY PUPIL REVIEWS GRID PAGES (Calculates 2x2 Layout Matrix)
+      // ----------------------------------------------------------------------
+      const answersForThisBoard = studentSubmissionsHistory[i] || {};
+      const studentNames = Object.keys(answersForThisBoard);
+
+      if (studentNames.length > 0) {
+        let pupilCellCounter = 0;
+
+        for (let s = 0; s < studentNames.length; s++) {
+          // Every 4 entries triggers a fresh landscape panel page breakout
+          if (pupilCellCounter % 4 === 0) {
+            pdf.addPage([1100, 520], 'landscape');
+            
+            // Draw Pupil Answer subhead title bar strip
+            pdf.setFillColor(90, 90, 115);
+            pdf.rect(0, 0, 1100, 40, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont("Helvetica", "bold");
+            pdf.setFontSize(14);
+            pdf.text(`PUPIL SUBMISSIONS FOR SLIDE SHEET ${i + 1}`, 30, 25);
+          }
+
+          const currentPupilName = studentNames[s];
+          const pupilImgData = answersForThisBoard[currentPupilName];
+
+          // Compute exact x/y grid column and row placement boxes
+          const col = pupilCellCounter % 2; 
+          const row = Math.floor((pupilCellCounter % 4) / 2);
+
+          const x = 40 + (col * 530);
+          const y = 65 + (row * 225);
+
+          // Draw an aesthetic framing placeholder background shell
+          pdf.setFillColor(245, 245, 250);
+          pdf.rect(x, y, 500, 210, 'F');
+          pdf.setDrawColor(215, 215, 225);
+          pdf.rect(x, y, 500, 210, 'S');
+
+          // Print Pupil Identifier Header Label
+          pdf.setTextColor(50, 50, 70);
+          pdf.setFont("Helvetica", "bold");
+          pdf.setFontSize(13);
+          pdf.text(`Pupil Workspace: ${currentPupilName}`, x + 15, y + 22);
+
+          // Embed pupil whiteboard answer
+          if (pupilImgData) {
+            pdf.addImage(pupilImgData, 'PNG', x + 15, y + 32, 470, 163);
+          }
+
+          pupilCellCounter++;
+        }
       }
     }
-    pdf.save('whiteboard-lesson-session.pdf');
+    
+    // Save report document
+    pdf.save('complete-classroom-lesson-session.pdf');
   });
 }
