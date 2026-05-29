@@ -21,6 +21,11 @@ const statusBar = document.getElementById('statusBar');
 const pupilPenColor = document.getElementById('pupilPenColor');
 const pupilClearBtn = document.getElementById('pupilClearBtn');
 
+// New Tool UI Connections (Falls back gracefully if you haven't written the HTML items yet)
+const pupilRubberBtn = document.getElementById('pupilRubberBtn');
+const pupilPenBtn = document.getElementById('pupilPenBtn');
+const pupilThicknessSlider = document.getElementById('pupilThickness') || { value: 4 };
+
 // ==========================================
 // 3. APPLICATION STATE VARIABLES
 // ==========================================
@@ -30,8 +35,14 @@ let isDrawing = false;
 let classIsFrozen = false;
 let liveChannel = null;
 
+// Multi-Board Sessional Memory Tracking Variables
+let studentBoardsData = ['']; 
+let currentStudentBoardIndex = 0;
+let currentThickness = 4;
+let isEraser = false;
+
 if (ctx && pupilPenColor) {
-  ctx.lineWidth = 4;
+  ctx.lineWidth = currentThickness;
   ctx.lineCap = 'round';
   ctx.strokeStyle = pupilPenColor.value;
 }
@@ -115,26 +126,54 @@ function getCanvasCoordinates(e) {
   };
 }
 
-// Vector Drawing Engine
+// Integrated Vector Drawing Engine (Handles Normal Inks & Rubber Erasures)
 function draw(e) {
   if (!isDrawing || !ctx || classIsFrozen) return;
   const coords = getCanvasCoordinates(e);
+  
+  // Set thickness parameter instantly from slider value or state memory
+  currentThickness = pupilThicknessSlider.value || 4;
+  ctx.lineWidth = currentThickness;
+  
+  if (isEraser) {
+    ctx.globalCompositeOperation = 'destination-out'; // Cuts out and erases pixels
+  } else {
+    ctx.globalCompositeOperation = 'source-over'; // Standard painting mode
+    ctx.strokeStyle = pupilPenColor.value || '#000000';
+  }
+  
   ctx.lineTo(coords.x, coords.y);
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(coords.x, coords.y);
 }
 
-// Dynamically track color alterations
+// Dynamically track tool and color adjustments
 if (pupilPenColor && ctx) {
   pupilPenColor.addEventListener('input', (e) => {
+    isEraser = false; // Turn off rubber automatically if pupil clicks a new color swatch
+    ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = e.target.value;
+  });
+}
+
+// Simple button events for Rubber vs Pen toggles
+if (pupilRubberBtn) {
+  pupilRubberBtn.addEventListener('click', () => {
+    isEraser = true;
+  });
+}
+if (pupilPenBtn) {
+  pupilPenBtn.addEventListener('click', () => {
+    isEraser = false;
+    ctx.globalCompositeOperation = 'source-over';
   });
 }
 
 // Clear local canvas tool
 if (pupilClearBtn && ctx && canvas) {
   pupilClearBtn.addEventListener('click', () => {
+    ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.beginPath();
     setTimeout(() => {
@@ -189,6 +228,36 @@ function startLiveConnection(roomCode) {
         statusBar.textContent = `Connected Live to Room ${activeRoomCode}`;
         statusBar.style.backgroundColor = "#BFEA7C";
         canvas.style.opacity = "1.0";
+      }
+    })
+    // NEW HISTORICAL MEMORY SYNC LISTENER
+    .on('broadcast', { event: 'switch-board' }, ({ payload }) => {
+      if (!canvas || !ctx) return;
+      
+      // Save what this specific pupil drew on the current board question before moving
+      studentBoardsData[currentStudentBoardIndex] = canvas.toDataURL();
+      
+      // Jump to the new board page requested by the teacher
+      currentStudentBoardIndex = payload.index;
+      
+      // Make sure drawing settings reset safely during transitions
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      
+      // If this page already contains an answer they drew previously, pull it up!
+      if (studentBoardsData[currentStudentBoardIndex]) {
+        const img = new Image();
+        img.src = studentBoardsData[currentStudentBoardIndex];
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          // Sync it immediately back onto the teacher's overview panel grid
+          sendBoardSnapshotToTeacher();
+        };
+      } else {
+        // If it's a blank new page, pass up a clean slate snapshot
+        studentBoardsData[currentStudentBoardIndex] = '';
+        sendBoardSnapshotToTeacher();
       }
     })
     .subscribe((status) => {

@@ -4,7 +4,6 @@
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
 
-// We changed the name to 'supabaseClient' to stop the browser from crashing!
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 async function checkUserSession() {
@@ -16,12 +15,10 @@ async function checkUserSession() {
 }
 checkUserSession();
 
-// Setup the broadcasting radio channel on the teacher's side
 const channel = supabaseClient ? supabaseClient.channel('room_8492') : null;
 if (channel) {
   channel
     .on('broadcast', { event: 'submit-answer' }, ({ payload }) => {
-      // CATCHES LIVE STUDENT SHOW-ME BOARDS
       handleIncomingStudentAnswer(payload);
     })
     .subscribe();
@@ -37,13 +34,18 @@ const clearBtn = document.getElementById('clearBtn');
 const penToolBtn = document.getElementById('penToolBtn');
 const textToolBtn = document.getElementById('textToolBtn');
 const imgToolBtn = document.getElementById('imgToolBtn');
+const rubberToolBtn = document.getElementById('rubberToolBtn'); // Added Rubber Reference
+
+// Sizing Control Selectors (Fallbacks included if not yet present in HTML)
+const sizeThicknessSlider = document.getElementById('penThickness') || { value: 4 };
+const textSizeSlider = document.getElementById('textSizeSelector') || { value: 20 };
 
 // Pagination elements
 const prevPageBtn = document.querySelector('.pagination .page-btn:first-child');
 const nextPageBtn = document.querySelector('.pagination .page-btn:last-child');
 const pageText = document.querySelector('.page-text');
 
-// Utility Row Elements (Timer & Freeze Class)
+// Utility Row Elements
 const timerDisplay = document.querySelector('.timer');
 const freezeBtn = document.getElementById('freezeBtn');
 const signOutBtn = document.querySelector('.sign-out'); 
@@ -61,9 +63,8 @@ let totalSeconds = 300;
 let boardsData = []; 
 let currentBoardIndex = 0;
 
-// Context Parameter Tuning
 if (ctx && colorPicker) {
-  ctx.lineWidth = 4;
+  ctx.lineWidth = sizeThicknessSlider.value;
   ctx.lineCap = 'round';
   ctx.strokeStyle = colorPicker.value;
 }
@@ -72,25 +73,20 @@ if (ctx && colorPicker) {
 // LIVE UPDATED: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
-  // Normalize student name to use as a unique ID for the image/card
   const safeNameId = studentData.name.replace(/\s+/g, '-');
   
-  // 1. Look to see if this student already has an active image element somewhere
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
   let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
 
   if (!liveImg) {
-    // 2. Find all empty slots, explicitly starting with the container directly next to "See All"
     const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
     let openSlots = [];
 
     if (seeAllBtn && seeAllBtn.parentElement) {
-      // Collect the adjacent sibling boxes right next to the button first
       openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
                        .filter(box => box.children.length === 0 && box !== seeAllBtn);
     }
 
-    // Fallback: collect any other empty dashboard boxes if the immediate layout is full
     if (openSlots.length === 0) {
       openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div'))
                        .filter(box => box.children.length === 0 && box.offsetWidth > 50);
@@ -99,15 +95,13 @@ function handleIncomingStudentAnswer(studentData) {
     const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
 
     if (bestSlot) {
-      // Set relative positioning on the parent so the banner can pin perfectly to the bottom edge
       bestSlot.style.position = "relative";
       bestSlot.style.display = "block";
-      bestSlot.style.overflow = "hidden"; // Clips the banner inside the box boundaries
+      bestSlot.style.overflow = "hidden"; 
       bestSlot.style.cursor = "pointer";
       bestSlot.style.border = "2px solid #dcdce6";
       bestSlot.style.backgroundColor = "#ffffff";
 
-      // 3. Create the inner thumbnail image
       liveImg = document.createElement('img');
       liveImg.id = `thumb-img-${safeNameId}`;
       liveImg.className = "student-thumb-src";
@@ -116,28 +110,25 @@ function handleIncomingStudentAnswer(studentData) {
       liveImg.style.objectFit = "contain";
       liveImg.style.display = "block";
 
-      // 4. RESTORED: Classic dark grey banner strip with white text
       nameLabel = document.createElement('div');
       nameLabel.id = `thumb-name-${safeNameId}`;
       nameLabel.textContent = studentData.name;
       nameLabel.style.width = "100%";
-      nameLabel.style.backgroundColor = "#4c4c5e"; // Classic slate/grey background banner
-      nameLabel.style.color = "#ffffff"; // Crisp white writing
+      nameLabel.style.backgroundColor = "#4c4c5e"; 
+      nameLabel.style.color = "#ffffff"; 
       nameLabel.style.fontSize = "12px";
       nameLabel.style.fontWeight = "bold";
       nameLabel.style.textAlign = "center";
       nameLabel.style.padding = "4px 0";
       nameLabel.style.position = "absolute";
-      nameLabel.style.bottom = "0"; // Locked perfectly to the floor edge of the thumbnail
+      nameLabel.style.bottom = "0"; 
       nameLabel.style.left = "0";
       nameLabel.style.boxSizing = "border-box";
-      nameLabel.style.zIndex = "10"; // Ensures it sits safely on top of the image canvas layer
+      nameLabel.style.zIndex = "10"; 
 
-      // Assemble components inside the whiteboard box card layout
       bestSlot.appendChild(liveImg);
       bestSlot.appendChild(nameLabel);
 
-      // CLICK PROJECTION ENGINE: Extracts the current multi-stroke canvas data URL
       bestSlot.addEventListener('click', () => {
         if (!ctx || !canvas) return;
         
@@ -152,102 +143,58 @@ function handleIncomingStudentAnswer(studentData) {
         };
         zoomImg.src = currentThumb.src;
       });
-    } else {
-      // Ultimate fallback card generation if grid divs are entirely missing
-      console.warn("No pre-existing empty slots found. Appending dynamically next to See All.");
-      if (seeAllBtn && seeAllBtn.parentElement) {
-        const fallbackCard = document.createElement('div');
-        fallbackCard.style.width = "140px";
-        fallbackCard.style.height = "100px";
-        fallbackCard.style.backgroundColor = "#ffffff";
-        fallbackCard.style.border = "2px solid #dcdce6";
-        fallbackCard.style.borderRadius = "8px";
-        fallbackCard.style.cursor = "pointer";
-        fallbackCard.style.position = "relative";
-        fallbackCard.style.overflow = "hidden";
-        
-        const fbImg = document.createElement('img');
-        fbImg.id = `thumb-img-${safeNameId}`;
-        fbImg.className = "student-thumb-src";
-        fbImg.style.width = "100%";
-        fbImg.style.height = "100%";
-        fbImg.style.objectFit = "contain";
-        fallbackCard.appendChild(fbImg);
-        
-        const fbLabel = document.createElement('div');
-        fbLabel.id = `thumb-name-${safeNameId}`;
-        fbLabel.textContent = studentData.name;
-        fbLabel.style.width = "100%";
-        fbLabel.style.backgroundColor = "#4c4c5e";
-        fbLabel.style.color = "#ffffff";
-        fbLabel.style.fontSize = "12px";
-        fbLabel.style.fontWeight = "bold";
-        fbLabel.style.textAlign = "center";
-        fbLabel.style.padding = "4px 0";
-        fbLabel.style.position = "absolute";
-        fbLabel.style.bottom = "0";
-        fbLabel.style.left = "0";
-        fallbackCard.appendChild(fbLabel);
-        
-        fallbackCard.addEventListener('click', () => {
-          if (!ctx || !canvas) return;
-          const currentThumb = fallbackCard.querySelector('.student-thumb-src');
-          if (!currentThumb || !currentThumb.src) return;
-
-          const zoomImg = new Image();
-          zoomImg.onload = () => {
-            saveCurrentBoardState();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
-          };
-          zoomImg.src = currentThumb.src;
-        });
-
-        seeAllBtn.parentElement.appendChild(fallbackCard);
-        liveImg = fbImg;
-      }
     }
   }
 
-  // 5. Update data source image string frame instantly with every single incoming stroke
   if (liveImg) {
     liveImg.src = studentData.boardImage;
   }
 }
 
 // ============================================================================
-// 2. TOOL SELECTION MANAGEMENT
+// 2. TOOL SELECTION MANAGEMENT (WITH RUBBER, THICKNESS & TEXT SIZE INLINE)
 // ============================================================================
 function setActiveTool(tool, activeBtn) {
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-  activeBtn.classList.add('active');
-  if (!canvas) return;
-  if (currentTool === 'text') {
-    canvas.style.cursor = 'text';
-  } else if (currentTool === 'img') {
-    canvas.style.cursor = 'pointer';
+  if (activeBtn) activeBtn.classList.add('active');
+  
+  if (!canvas || !ctx) return;
+  
+  // Manage structural composite drawing overlays based on selected tool
+  if (currentTool === 'rubber') {
+    ctx.globalCompositeOperation = 'destination-out'; // Ink subtraction/eraser tracking mode
+    canvas.style.cursor = 'cell';
   } else {
-    canvas.style.cursor = 'crosshair';
+    ctx.globalCompositeOperation = 'source-over'; // Standard painting mode override
+    if (currentTool === 'text') {
+      canvas.style.cursor = 'text';
+    } else if (currentTool === 'img') {
+      canvas.style.cursor = 'pointer';
+    } else {
+      canvas.style.cursor = 'crosshair';
+    }
   }
 }
 
 if (penToolBtn) penToolBtn.addEventListener('click', () => setActiveTool('pen', penToolBtn));
 if (textToolBtn) textToolBtn.addEventListener('click', () => setActiveTool('text', textToolBtn));
 if (imgToolBtn) imgToolBtn.addEventListener('click', () => setActiveTool('img', imgToolBtn));
+if (rubberToolBtn) rubberToolBtn.addEventListener('click', () => setActiveTool('rubber', rubberToolBtn));
 
 if (colorPicker && ctx) {
   colorPicker.addEventListener('input', (e) => {
+    if (currentTool === 'rubber') setActiveTool('pen', penToolBtn); // Switch back to pen if color changes
     ctx.strokeStyle = e.target.value;
   });
 }
 
 // ============================================================================
-// 3. RENDERING ENGINE (PEN DRAWING)
+// 3. RENDERING ENGINE (PEN & ERASER SYSTEM)
 // ============================================================================
 if (canvas && ctx) {
   canvas.addEventListener('mousedown', (e) => {
-    if (currentTool !== 'pen') return;
+    if (currentTool !== 'pen' && currentTool !== 'rubber') return;
     isDrawing = true;
     draw(e);
   });
@@ -267,23 +214,33 @@ function getCanvasCoordinates(e) {
   };
 }
 
-// Vector Drawing Engine
 function draw(e) {
-  if (!isDrawing || currentTool !== 'pen' || !ctx || !channel) return;
+  if (!isDrawing || (currentTool !== 'pen' && currentTool !== 'rubber') || !ctx || !channel) return;
   const coords = getCanvasCoordinates(e);
+  
+  // Dynamically inject updated stroke scale parameters
+  ctx.lineWidth = sizeThicknessSlider.value || 4;
+  
   ctx.lineTo(coords.x, coords.y);
   ctx.stroke();
+  
   channel.send({
     type: 'broadcast',
     event: 'draw',
-    payload: { x: coords.x, y: coords.y, color: ctx.strokeStyle }
+    payload: { 
+      x: coords.x, 
+      y: coords.y, 
+      color: ctx.strokeStyle, 
+      thickness: ctx.lineWidth,
+      isRubber: (currentTool === 'rubber')
+    }
   });
   ctx.beginPath();
   ctx.moveTo(coords.x, coords.y);
 }
 
 // ============================================================================
-// 4. INTERACTIVE CANVAS TOOLS (TEXT & IMAGES)
+// 4. INTERACTIVE CANVAS TOOLS (DYNAMIC SCALE TEXT ENGINE)
 // ============================================================================
 function renderAndBroadcastImage(file, x, y) {
   if (!ctx || !canvas || !channel) return;
@@ -332,6 +289,11 @@ if (canvas) {
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'canvas-text-input';
+      
+      // Inherit the dynamic font configuration sizing parameters
+      const currentFontSize = textSizeSlider.value || 20;
+      input.style.fontSize = `${currentFontSize}px`;
+      
       const wrapperRect = wrapper.getBoundingClientRect();
       input.style.left = `${coords.clientX - wrapperRect.left}px`;
       input.style.top = `${coords.clientY - wrapperRect.top}px`;
@@ -341,15 +303,17 @@ if (canvas) {
       function finalizeText() {
         const textVal = input.value.trim();
         if (textVal && ctx && channel) {
-          ctx.font = 'bold 20px "Segoe UI", sans-serif';
-          ctx.fillStyle = document.getElementById('penColor').value; 
+          ctx.globalCompositeOperation = 'source-over';
+          const dynamicFontSize = textSizeSlider.value || 20;
+          ctx.font = `bold ${dynamicFontSize}px "Segoe UI", sans-serif`;
+          ctx.fillStyle = colorPicker.value || '#000000'; 
           ctx.textBaseline = 'top';
           ctx.fillText(textVal, coords.x, coords.y);
           saveCurrentBoardState();
           channel.send({
             type: 'broadcast',
             event: 'text',
-            payload: { x: coords.x, y: coords.y, text: textVal, color: ctx.strokeStyle }
+            payload: { x: coords.x, y: coords.y, text: textVal, color: ctx.fillStyle, size: dynamicFontSize }
           });
         }
         input.remove();
@@ -371,20 +335,32 @@ if (canvas) {
 }
 
 // ============================================================================
-// 5. MULTI-BOARD SLIDE PRESENTATION LOGIC
+// 5. FIXED MULTI-BOARD SLIDE PRESENTATION LOGIC
 // ============================================================================
 function updatePaginationUI() {
   if (pageText) pageText.textContent = `Board ${currentBoardIndex + 1} of ${Math.max(boardsData.length, 1)}`;
 }
 function saveCurrentBoardState() { if (canvas) boardsData[currentBoardIndex] = canvas.toDataURL(); }
+
 function loadBoardState(index) {
   if (!ctx || !canvas) return;
+  ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   updatePaginationUI();
+  
   if (boardsData[index]) {
     const img = new Image();
     img.src = boardsData[index];
     img.onload = () => { ctx.drawImage(img, 0, 0); };
+  }
+
+  // FIXED SYNC LINK: Informs pupil screens to automatically archive their views and match index positions
+  if (channel) {
+    channel.send({
+      type: 'broadcast',
+      event: 'switch-board',
+      payload: { index: index }
+    });
   }
 }
 
@@ -396,10 +372,11 @@ if (nextPageBtn) {
       boardsData.push(''); 
       if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
       updatePaginationUI();
+      // Inform pupils to turn to the new, blank board page
+      if (channel) channel.send({ type: 'broadcast', event: 'switch-board', payload: { index: currentBoardIndex } });
     } else {
       loadBoardState(currentBoardIndex);
     }
-    if (channel) channel.send({ type: 'broadcast', event: 'clear' });
   });
 }
 
@@ -409,12 +386,12 @@ if (prevPageBtn) {
     saveCurrentBoardState();
     currentBoardIndex--;
     loadBoardState(currentBoardIndex);
-    if (channel) channel.send({ type: 'broadcast', event: 'clear' });
   });
 }
 
 if (clearBtn) {
   clearBtn.addEventListener('click', () => {
+    ctx.globalCompositeOperation = 'source-over';
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (channel) channel.send({ type: 'broadcast', event: 'clear' });
   });

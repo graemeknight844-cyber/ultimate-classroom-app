@@ -90,6 +90,27 @@
       max-width: 100%;
       height: auto;
     }
+
+    /* CUSTOM STYLES FOR THE NEW UI BUTTONS */
+    .pupil-tool-btn {
+      padding: 6px 14px;
+      background: #e1e1eb;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #4a4a68;
+      transition: all 0.2s;
+    }
+    .pupil-tool-btn:hover {
+      background: #d4d4e0;
+    }
+    .tool-label {
+      font-size: 14px;
+      font-weight: bold;
+      color: #4a4a68;
+      margin-left: 10px;
+    }
   </style>
 </head>
 <body>
@@ -103,13 +124,21 @@
       <button id="joinClassBtn">Join Class</button>
     </div>
 
-<div id="boardWorkspace" style="display: none;">
+    <div id="boardWorkspace" style="display: none;">
       <div class="status-bar" id="statusBar">Connecting to Teacher's Board...</div>
       
-      <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+      <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center; flex-wrap: wrap;">
         <span style="font-weight: bold; color: #4a4a68;">Your Tools:</span>
+        
+        <button id="pupilPenBtn" class="pupil-tool-btn" style="background: #4a4a68; color: white;">Pen</button>
+        <button id="pupilRubberBtn" class="pupil-tool-btn">Rubber</button>
+        
         <input type="color" id="pupilPenColor" value="#333333" style="border: none; cursor: pointer; width: 40px; height: 30px; border-radius: 4px;">
-        <button id="pupilClearBtn" style="padding: 6px 12px; background: #ffcccc; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: #cc0000;">Clear My Board</button>
+        
+        <span class="tool-label">Thickness:</span>
+        <input type="range" id="pupilThickness" min="2" max="25" value="4" style="cursor: pointer; width: 100px;">
+        
+        <button id="pupilClearBtn" style="padding: 6px 12px; background: #ffcccc; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: #cc0000; margin-left: auto;">Clear My Board</button>
       </div>
 
       <canvas id="pupilCanvas" width="1100" height="520" style="touch-action: none; background: #ffffff; border: 1px solid #ccc; max-width: 100%; height: auto; display: block;"></canvas>
