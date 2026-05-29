@@ -9,72 +9,164 @@ const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_U
 async function checkUserSession() {
   if (!supabaseClient) return;
   const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) {
-    window.location.href = "index.html";
-  }
+  if (!session) { window.location.href = "index.html"; }
 }
 checkUserSession();
 
 const channel = supabaseClient ? supabaseClient.channel('room_8492') : null;
 if (channel) {
   channel
-    .on('broadcast', { event: 'submit-answer' }, ({ payload }) => {
-      handleIncomingStudentAnswer(payload);
-    })
+    .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
     .subscribe();
 }
 
 // DOM Element Declarations
 const canvas = document.getElementById('teacherCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
-const colorPicker = document.getElementById('penColor');
+const colorPicker = document.getElementById('penColor') || { value: '#333333' };
 const clearBtn = document.getElementById('clearBtn');
 
 // Toolbar buttons
 const penToolBtn = document.getElementById('penToolBtn');
 const textToolBtn = document.getElementById('textToolBtn');
 const imgToolBtn = document.getElementById('imgToolBtn');
-const rubberToolBtn = document.getElementById('rubberToolBtn'); // Added Rubber Reference
+const rubberToolBtn = document.getElementById('rubberToolBtn');
 
-// Sizing Control Selectors (Fallbacks included if not yet present in HTML)
+// Sizing Sliders
 const sizeThicknessSlider = document.getElementById('penThickness') || { value: 4 };
-const textSizeSlider = document.getElementById('textSizeSelector') || { value: 20 };
+const textSizeSlider = document.getElementById('textSizeSelector') || { value: 24 };
 
 // Pagination elements
 const prevPageBtn = document.querySelector('.pagination .page-btn:first-child');
 const nextPageBtn = document.querySelector('.pagination .page-btn:last-child');
 const pageText = document.querySelector('.page-text');
 
-// Utility Row Elements
+// Utility Elements
 const timerDisplay = document.querySelector('.timer');
 const freezeBtn = document.getElementById('freezeBtn');
 const signOutBtn = document.querySelector('.sign-out'); 
 
-// Application Functional State Variables
+// Application State
 let currentTool = 'pen'; 
 let isDrawing = false;
 let classIsFrozen = false;
-
-// Timer State Variables
 let countdownInterval;
 let totalSeconds = 300; 
 
-// Slide Deck System Variables
+// Multi-Board Variables
 let boardsData = []; 
 let currentBoardIndex = 0;
 
-if (ctx && colorPicker) {
+if (ctx) {
   ctx.lineWidth = sizeThicknessSlider.value;
   ctx.lineCap = 'round';
   ctx.strokeStyle = colorPicker.value;
 }
 
 // ============================================================================
-// LIVE UPDATED: SHOW-ME BOARD REAL-TIME DISPLAY SYSTEM
+// DRAG & RESIZE VECTOR CORE ENGINE
+// ============================================================================
+function makeElementDraggableAndResizable(el, allowResize) {
+  let isDragging = false;
+  let isResizing = false;
+  let startX, startY, startLeft, startTop, startWidth, startHeight;
+
+  el.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('resize-handle')) return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = el.offsetLeft;
+    startTop = el.offsetTop;
+    e.preventDefault();
+  });
+
+  if (allowResize) {
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.style.cssText = 'width:14px; height:14px; background:#4a4a68; position:absolute; bottom:0; right:0; cursor:se-resize; border-radius:50%; border:2px solid white;';
+    el.appendChild(handle);
+
+    handle.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startWidth = el.offsetWidth;
+      startHeight = el.offsetHeight;
+      e.stopPropagation();
+      e.preventDefault();
+    });
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      el.style.left = `${startLeft + dx}px`;
+      el.style.top = `${startTop + dy}px`;
+    }
+    if (isResizing) {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      el.style.width = `${Math.max(50, startWidth + dx)}px`;
+      el.style.height = `${Math.max(30, startHeight + dy)}px`;
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    isResizing = false;
+  });
+}
+
+// BAKING ENGINE: Flattens movable DOM items accurately onto the underlying canvas array layout
+function bakeFloatingObjects() {
+  if (!canvas || !ctx) return;
+  const wrapper = canvas.parentElement;
+  const floatingObjects = wrapper.querySelectorAll('.floating-canvas-object');
+  
+  if (floatingObjects.length === 0) return;
+
+  const scaleX = canvas.width / canvas.getBoundingClientRect().width;
+  const scaleY = canvas.height / canvas.getBoundingClientRect().height;
+
+  floatingObjects.forEach(obj => {
+    const rect = obj.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    const x = (rect.left - canvasRect.left) * scaleX;
+    const y = (rect.top - canvasRect.top) * scaleY;
+    const w = rect.width * scaleX;
+    const h = rect.height * scaleY;
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    if (obj.classList.contains('text-type-wrapper')) {
+      const inputEl = obj.querySelector('input');
+      const textVal = inputEl ? inputEl.value.trim() : '';
+      if (textVal) {
+        const localFontSize = parseInt(window.getComputedStyle(inputEl).fontSize);
+        const dynamicFontSize = localFontSize * scaleY;
+        ctx.font = `bold ${dynamicFontSize}px "Segoe UI", sans-serif`;
+        ctx.fillStyle = colorPicker.value || '#000000';
+        ctx.textBaseline = 'top';
+        ctx.fillText(textVal, x, y + (4 * scaleY));
+      }
+    } else if (obj.classList.contains('image-type-wrapper')) {
+      const imgEl = obj.querySelector('img');
+      if (imgEl && imgEl.src) {
+        ctx.drawImage(imgEl, x, y, w, h);
+      }
+    }
+    obj.remove();
+  });
+}
+
+// ============================================================================
+// WHITEBOARD DISPLAY SYSTEM
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
   const safeNameId = studentData.name.replace(/\s+/g, '-');
-  
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
   let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
 
@@ -86,12 +178,10 @@ function handleIncomingStudentAnswer(studentData) {
       openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
                        .filter(box => box.children.length === 0 && box !== seeAllBtn);
     }
-
     if (openSlots.length === 0) {
-      openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div'))
+      openSlots = Array.from(document.querySelectorAll('.classroom-container div'))
                        .filter(box => box.children.length === 0 && box.offsetWidth > 50);
     }
-
     const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
 
     if (bestSlot) {
@@ -104,39 +194,26 @@ function handleIncomingStudentAnswer(studentData) {
 
       liveImg = document.createElement('img');
       liveImg.id = `thumb-img-${safeNameId}`;
-      liveImg.className = "student-thumb-src";
       liveImg.style.width = "100%";
       liveImg.style.height = "100%";
       liveImg.style.objectFit = "contain";
-      liveImg.style.display = "block";
 
       nameLabel = document.createElement('div');
       nameLabel.id = `thumb-name-${safeNameId}`;
       nameLabel.textContent = studentData.name;
-      nameLabel.style.width = "100%";
-      nameLabel.style.backgroundColor = "#4c4c5e"; 
-      nameLabel.style.color = "#ffffff"; 
-      nameLabel.style.fontSize = "12px";
-      nameLabel.style.fontWeight = "bold";
-      nameLabel.style.textAlign = "center";
-      nameLabel.style.padding = "4px 0";
-      nameLabel.style.position = "absolute";
-      nameLabel.style.bottom = "0"; 
-      nameLabel.style.left = "0";
-      nameLabel.style.boxSizing = "border-box";
-      nameLabel.style.zIndex = "10"; 
+      nameLabel.style.cssText = "width:100%; background:#4c4c5e; color:#fff; font-size:12px; font-weight:bold; text-align:center; padding:4px 0; position:absolute; bottom:0; left:0; box-sizing:border-box; z-index:10;";
 
       bestSlot.appendChild(liveImg);
       bestSlot.appendChild(nameLabel);
 
       bestSlot.addEventListener('click', () => {
         if (!ctx || !canvas) return;
-        
-        const currentThumb = bestSlot.querySelector('.student-thumb-src');
+        const currentThumb = bestSlot.querySelector('img');
         if (!currentThumb || !currentThumb.src) return;
 
         const zoomImg = new Image();
         zoomImg.onload = () => {
+          bakeFloatingObjects();
           saveCurrentBoardState();
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
@@ -145,35 +222,28 @@ function handleIncomingStudentAnswer(studentData) {
       });
     }
   }
-
-  if (liveImg) {
-    liveImg.src = studentData.boardImage;
-  }
+  if (liveImg) { liveImg.src = studentData.boardImage; }
 }
 
 // ============================================================================
-// 2. TOOL SELECTION MANAGEMENT (WITH RUBBER, THICKNESS & TEXT SIZE INLINE)
+// TOOL CONTROL SYSTEM
 // ============================================================================
 function setActiveTool(tool, activeBtn) {
+  bakeFloatingObjects(); // Bake current edits down automatically if switching tools
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
   if (activeBtn) activeBtn.classList.add('active');
   
   if (!canvas || !ctx) return;
   
-  // Manage structural composite drawing overlays based on selected tool
   if (currentTool === 'rubber') {
-    ctx.globalCompositeOperation = 'destination-out'; // Ink subtraction/eraser tracking mode
+    ctx.globalCompositeOperation = 'destination-out';
     canvas.style.cursor = 'cell';
   } else {
-    ctx.globalCompositeOperation = 'source-over'; // Standard painting mode override
-    if (currentTool === 'text') {
-      canvas.style.cursor = 'text';
-    } else if (currentTool === 'img') {
-      canvas.style.cursor = 'pointer';
-    } else {
-      canvas.style.cursor = 'crosshair';
-    }
+    ctx.globalCompositeOperation = 'source-over';
+    if (currentTool === 'text') { canvas.style.cursor = 'text'; }
+    else if (currentTool === 'img') { canvas.style.cursor = 'pointer'; }
+    else { canvas.style.cursor = 'crosshair'; }
   }
 }
 
@@ -184,13 +254,13 @@ if (rubberToolBtn) rubberToolBtn.addEventListener('click', () => setActiveTool('
 
 if (colorPicker && ctx) {
   colorPicker.addEventListener('input', (e) => {
-    if (currentTool === 'rubber') setActiveTool('pen', penToolBtn); // Switch back to pen if color changes
+    if (currentTool === 'rubber') setActiveTool('pen', penToolBtn);
     ctx.strokeStyle = e.target.value;
   });
 }
 
 // ============================================================================
-// 3. RENDERING ENGINE (PEN & ERASER SYSTEM)
+// DRAWING ENGINE ENGINE (PEN & RUBBER/ERASER MECHANICS)
 // ============================================================================
 if (canvas && ctx) {
   canvas.addEventListener('mousedown', (e) => {
@@ -215,132 +285,106 @@ function getCanvasCoordinates(e) {
 }
 
 function draw(e) {
-  if (!isDrawing || (currentTool !== 'pen' && currentTool !== 'rubber') || !ctx || !channel) return;
+  if (!isDrawing || (currentTool !== 'pen' && currentTool !== 'rubber') || !ctx) return;
   const coords = getCanvasCoordinates(e);
   
-  // Dynamically inject updated stroke scale parameters
   ctx.lineWidth = sizeThicknessSlider.value || 4;
-  
   ctx.lineTo(coords.x, coords.y);
   ctx.stroke();
-  
-  channel.send({
-    type: 'broadcast',
-    event: 'draw',
-    payload: { 
-      x: coords.x, 
-      y: coords.y, 
-      color: ctx.strokeStyle, 
-      thickness: ctx.lineWidth,
-      isRubber: (currentTool === 'rubber')
-    }
-  });
   ctx.beginPath();
   ctx.moveTo(coords.x, coords.y);
 }
 
 // ============================================================================
-// 4. INTERACTIVE CANVAS TOOLS (DYNAMIC SCALE TEXT ENGINE)
+// MOVABLE / RESIZABLE OBJECT CREATION GATES
 // ============================================================================
-function renderAndBroadcastImage(file, x, y) {
-  if (!ctx || !canvas || !channel) return;
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    const img = new Image();
-    img.onload = () => {
-      const maxDimension = 400;
-      let width = img.width;
-      let height = img.height;
-      if (width > maxDimension || height > maxDimension) {
-        if (width > height) { height *= maxDimension / width; width = maxDimension; }
-        else { width *= maxDimension / height; height = maxDimension; }
-      }
-      ctx.drawImage(img, x, y, width, height);
-      saveCurrentBoardState();
-      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-      channel.send({
-        type: 'broadcast',
-        event: 'image-drop',
-        payload: { x, y, width, height, dataUrl: compressedDataUrl }
-      });
-    };
-    img.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
+function spawnMovableImage(srcDataUrl, initialX, initialY) {
+  const wrapper = canvas.parentElement;
+  const imgWrapper = document.createElement('div');
+  imgWrapper.className = 'floating-canvas-object image-type-wrapper';
+  imgWrapper.style.cssText = `position: absolute; left: ${initialX}px; top: ${initialY}px; width: 220px; height: 150px; border: 2px dashed #4a4a68; cursor: move; padding: 2px; background: rgba(255,255,255,0.4);`;
+
+  const img = document.createElement('img');
+  img.src = srcDataUrl;
+  img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; pointer-events: none;';
+  
+  imgWrapper.appendChild(img);
+  wrapper.appendChild(imgWrapper);
+  makeElementDraggableAndResizable(imgWrapper, true);
 }
 
+// Intercept Pasted Items
 window.addEventListener('paste', (e) => {
   if (currentTool !== 'img') return;
   const items = (e.clipboardData || e.originalEvent.clipboardData).items;
   for (let item of items) {
     if (item.kind === 'file' && item.type.startsWith('image/')) {
       const file = item.getAsFile();
-      renderAndBroadcastImage(file, 350, 150);
+      const reader = new FileReader();
+      reader.onload = (event) => { spawnMovableImage(event.target.result, 150, 100); };
+      reader.readAsDataURL(file);
     }
   }
 });
 
 if (canvas) {
   canvas.addEventListener('click', (e) => {
-    const coords = getCanvasCoordinates(e);
+    const wrapper = canvas.parentElement;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const clickX = e.clientX - wrapperRect.left;
+    const clickY = e.clientY - wrapperRect.top;
+
     if (currentTool === 'text') {
-      if (document.querySelector('.canvas-text-input')) return;
-      const wrapper = canvas.parentElement;
+      const textWrapper = document.createElement('div');
+      textWrapper.className = 'floating-canvas-object text-type-wrapper';
+      textWrapper.style.cssText = `position: absolute; left: ${clickX}px; top: ${clickY - 15}px; border: 2px dashed #4a4a68; cursor: move; background: transparent; padding: 2px; display: inline-block;`;
+
       const input = document.createElement('input');
       input.type = 'text';
-      input.className = 'canvas-text-input';
+      const userSelectedSize = textSizeSlider.value || 24;
+      input.style.cssText = `font-size: ${userSelectedSize}px; font-weight: bold; font-family: "Segoe UI", sans-serif; border: none; background: transparent; color: ${colorPicker.value}; outline: none; width: 200px;`;
       
-      // Inherit the dynamic font configuration sizing parameters
-      const currentFontSize = textSizeSlider.value || 20;
-      input.style.fontSize = `${currentFontSize}px`;
-      
-      const wrapperRect = wrapper.getBoundingClientRect();
-      input.style.left = `${coords.clientX - wrapperRect.left}px`;
-      input.style.top = `${coords.clientY - wrapperRect.top}px`;
-      wrapper.appendChild(input);
+      textWrapper.appendChild(input);
+      wrapper.appendChild(textWrapper);
       input.focus();
 
-      function finalizeText() {
-        const textVal = input.value.trim();
-        if (textVal && ctx && channel) {
-          ctx.globalCompositeOperation = 'source-over';
-          const dynamicFontSize = textSizeSlider.value || 20;
-          ctx.font = `bold ${dynamicFontSize}px "Segoe UI", sans-serif`;
-          ctx.fillStyle = colorPicker.value || '#000000'; 
-          ctx.textBaseline = 'top';
-          ctx.fillText(textVal, coords.x, coords.y);
-          saveCurrentBoardState();
-          channel.send({
-            type: 'broadcast',
-            event: 'text',
-            payload: { x: coords.x, y: coords.y, text: textVal, color: ctx.fillStyle, size: dynamicFontSize }
-          });
-        }
-        input.remove();
-      }
-      input.addEventListener('blur', finalizeText);
-      input.addEventListener('keydown', (keyEvent) => { if (keyEvent.key === 'Enter') finalizeText(); });
+      makeElementDraggableAndResizable(textWrapper, false);
+
+      input.addEventListener('keydown', (k) => {
+        if (k.key === 'Enter') { setActiveTool('pen', penToolBtn); }
+      });
     }
+
     if (currentTool === 'img') {
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*';
       fileInput.onchange = (event) => {
         const file = event.target.files[0];
-        if (file) renderAndBroadcastImage(file, coords.x, coords.y);
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => { spawnMovableImage(ev.target.result, clickX, clickY); };
+          reader.readAsDataURL(file);
+        }
       };
       fileInput.click();
+      setActiveTool('pen', penToolBtn);
     }
   });
 }
 
 // ============================================================================
-// 5. FIXED MULTI-BOARD SLIDE PRESENTATION LOGIC
+// MULTI-BOARD RE-SYNCHRONIZATION LOGIC
 // ============================================================================
 function updatePaginationUI() {
   if (pageText) pageText.textContent = `Board ${currentBoardIndex + 1} of ${Math.max(boardsData.length, 1)}`;
 }
-function saveCurrentBoardState() { if (canvas) boardsData[currentBoardIndex] = canvas.toDataURL(); }
+
+function saveCurrentBoardState() { 
+  if (!canvas) return;
+  bakeFloatingObjects(); // Bake floating changes down before making the dataURL snapshot
+  boardsData[currentBoardIndex] = canvas.toDataURL(); 
+}
 
 function loadBoardState(index) {
   if (!ctx || !canvas) return;
@@ -354,7 +398,6 @@ function loadBoardState(index) {
     img.onload = () => { ctx.drawImage(img, 0, 0); };
   }
 
-  // FIXED SYNC LINK: Informs pupil screens to automatically archive their views and match index positions
   if (channel) {
     channel.send({
       type: 'broadcast',
@@ -372,7 +415,6 @@ if (nextPageBtn) {
       boardsData.push(''); 
       if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
       updatePaginationUI();
-      // Inform pupils to turn to the new, blank board page
       if (channel) channel.send({ type: 'broadcast', event: 'switch-board', payload: { index: currentBoardIndex } });
     } else {
       loadBoardState(currentBoardIndex);
@@ -391,44 +433,40 @@ if (prevPageBtn) {
 
 if (clearBtn) {
   clearBtn.addEventListener('click', () => {
+    // Wipe floating elements away
+    if (canvas) {
+      const activeObjects = canvas.parentElement.querySelectorAll('.floating-canvas-object');
+      activeObjects.forEach(o => o.remove());
+    }
     ctx.globalCompositeOperation = 'source-over';
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (channel) channel.send({ type: 'broadcast', event: 'clear' });
   });
 }
+
 if (canvas) boardsData[0] = canvas.toDataURL();
 updatePaginationUI();
 
 // ============================================================================
-// 6. UTILITY CONTROLS (LIVE TIMER, FREEZE & SIGN OUT)
+// TIMERS & GLOBAL UTILITIES
 // ============================================================================
-function formatTimerDisplay(seconds) {
-  const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-  const secs = (seconds % 60).toString().padStart(2, '0');
-  return `Timer: ${mins}:${secs}`;
-}
-
 if (timerDisplay) {
   timerDisplay.style.cursor = "pointer";
-  timerDisplay.style.color = "#ff4d4d"; 
-  timerDisplay.style.transition = "color 0.3s ease";
-
   timerDisplay.addEventListener('click', () => {
     if (countdownInterval) {
       clearInterval(countdownInterval);
       countdownInterval = null;
-      timerDisplay.style.color = "#ff4d4d"; 
     } else {
-      timerDisplay.style.color = "#2ecc71"; 
       countdownInterval = setInterval(() => {
         if (totalSeconds > 0) {
           totalSeconds--;
-          timerDisplay.textContent = formatTimerDisplay(totalSeconds);
+          const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+          const secs = (totalSeconds % 60).toString().padStart(2, '0');
+          timerDisplay.textContent = `Timer: ${mins}:${secs}`;
           if (channel) channel.send({ type: 'broadcast', event: 'timer-tick', payload: { seconds: totalSeconds } });
         } else {
           clearInterval(countdownInterval);
           countdownInterval = null;
-          timerDisplay.style.color = "#ff4d4d"; 
           alert("Time is up!");
         }
       }, 1000);
@@ -439,13 +477,8 @@ if (timerDisplay) {
 if (freezeBtn) {
   freezeBtn.addEventListener('click', () => {
     classIsFrozen = !classIsFrozen;
-    if (classIsFrozen) {
-      freezeBtn.textContent = "Unfreeze Class";
-      freezeBtn.style.backgroundColor = "#ff9999";
-    } else {
-      freezeBtn.textContent = "Freeze Class";
-      freezeBtn.style.backgroundColor = "#ffcccc";
-    }
+    freezeBtn.textContent = classIsFrozen ? "Unfreeze Class" : "Freeze Class";
+    freezeBtn.style.backgroundColor = classIsFrozen ? "#ff9999" : "#ffcccc";
     if (channel) channel.send({ type: 'broadcast', event: 'freeze-state', payload: { isFrozen: classIsFrozen } });
   });
 }
@@ -457,9 +490,7 @@ if (signOutBtn) {
   });
 }
 
-// ============================================================================
-// 7. PDF GENERATION ENGINE
-// ============================================================================
+// PDF Export Module integration
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
@@ -468,14 +499,12 @@ if (exportBtn) {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
     let pagesAdded = 0;
     for (let i = 0; i < boardsData.length; i++) {
-      const boardSnapshot = boardsData[i];
-      if (boardSnapshot) {
+      if (boardsData[i]) {
         if (pagesAdded > 0) { pdf.addPage([1100, 520], 'landscape'); }
-        pdf.addImage(boardSnapshot, 'PNG', 0, 0, 1100, 520);
+        pdf.addImage(boardsData[i], 'PNG', 0, 0, 1100, 520);
         pagesAdded++;
       }
     }
-    if (pagesAdded === 0 && canvas) { pdf.addImage(canvas.toDataURL(), 'PNG', 0, 0, 1100, 520); }
     pdf.save('whiteboard-lesson-session.pdf');
   });
 }
