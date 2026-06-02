@@ -21,10 +21,16 @@ const statusBar = document.getElementById('statusBar');
 const pupilPenColor = document.getElementById('pupilPenColor');
 const pupilClearBtn = document.getElementById('pupilClearBtn');
 
-// New Tool UI Connections (Falls back gracefully if you haven't written the HTML items yet)
 const pupilRubberBtn = document.getElementById('pupilRubberBtn');
 const pupilPenBtn = document.getElementById('pupilPenBtn');
 const pupilThicknessSlider = document.getElementById('pupilThickness') || { value: 4 };
+
+// New Poll UI Engine Selectors
+const pupilWhiteboardView = document.getElementById('pupilWhiteboardView');
+const pupilPollView = document.getElementById('pupilPollView');
+const pupilPollQuestion = document.getElementById('pupilPollQuestion');
+const pupilPollOptions = document.getElementById('pupilPollOptions');
+const pupilPollStatus = document.getElementById('pupilPollStatus');
 
 // ==========================================
 // 3. APPLICATION STATE VARIABLES
@@ -35,7 +41,6 @@ let isDrawing = false;
 let classIsFrozen = false;
 let liveChannel = null;
 
-// Multi-Board Sessional Memory Tracking Variables
 let studentBoardsData = ['']; 
 let currentStudentBoardIndex = 0;
 let currentThickness = 4;
@@ -74,7 +79,6 @@ if (joinClassBtn) {
 // 5. PUPIL'S PERSONAL DRAWING SYSTEM & UTILITIES
 // ==========================================
 if (canvas && ctx) {
-  // Mouse Events
   canvas.addEventListener('mousedown', (e) => {
     if (classIsFrozen) return; 
     isDrawing = true;
@@ -83,9 +87,7 @@ if (canvas && ctx) {
   canvas.addEventListener('mouseup', () => { 
     isDrawing = false; 
     ctx.beginPath(); 
-    setTimeout(() => {
-      sendBoardSnapshotToTeacher(); 
-    }, 50);
+    setTimeout(() => { sendBoardSnapshotToTeacher(); }, 50);
   });
   canvas.addEventListener('mouseout', () => { 
     isDrawing = false; 
@@ -93,7 +95,6 @@ if (canvas && ctx) {
   });
   canvas.addEventListener('mousemove', draw);
 
-  // Touch Screen Events (Upgraded for iPad Stability and Complete Sync)
   canvas.addEventListener('touchstart', (e) => {
     if (classIsFrozen) return;
     e.preventDefault(); 
@@ -105,9 +106,7 @@ if (canvas && ctx) {
     e.preventDefault();
     isDrawing = false;
     ctx.beginPath();
-    setTimeout(() => {
-      sendBoardSnapshotToTeacher(); 
-    }, 50);
+    setTimeout(() => { sendBoardSnapshotToTeacher(); }, 50);
   });
   canvas.addEventListener('touchmove', (e) => {
     e.preventDefault(); 
@@ -116,7 +115,6 @@ if (canvas && ctx) {
   });
 }
 
-// Coordinate Translator Engine
 function getCanvasCoordinates(e) {
   if (!canvas) return { x: 0, y: 0 };
   const rect = canvas.getBoundingClientRect();
@@ -126,19 +124,17 @@ function getCanvasCoordinates(e) {
   };
 }
 
-// Integrated Vector Drawing Engine (Handles Normal Inks & Rubber Erasures)
 function draw(e) {
   if (!isDrawing || !ctx || classIsFrozen) return;
   const coords = getCanvasCoordinates(e);
   
-  // Set thickness parameter instantly from slider value or state memory
   currentThickness = pupilThicknessSlider.value || 4;
   ctx.lineWidth = currentThickness;
   
   if (isEraser) {
-    ctx.globalCompositeOperation = 'destination-out'; // Cuts out and erases pixels
+    ctx.globalCompositeOperation = 'destination-out'; 
   } else {
-    ctx.globalCompositeOperation = 'source-over'; // Standard painting mode
+    ctx.globalCompositeOperation = 'source-over'; 
     ctx.strokeStyle = pupilPenColor.value || '#000000';
   }
   
@@ -148,20 +144,16 @@ function draw(e) {
   ctx.moveTo(coords.x, coords.y);
 }
 
-// Dynamically track tool and color adjustments
 if (pupilPenColor && ctx) {
   pupilPenColor.addEventListener('input', (e) => {
-    isEraser = false; // Turn off rubber automatically if pupil clicks a new color swatch
+    isEraser = false; 
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = e.target.value;
   });
 }
 
-// Simple button events for Rubber vs Pen toggles
 if (pupilRubberBtn) {
-  pupilRubberBtn.addEventListener('click', () => {
-    isEraser = true;
-  });
+  pupilRubberBtn.addEventListener('click', () => { isEraser = true; });
 }
 if (pupilPenBtn) {
   pupilPenBtn.addEventListener('click', () => {
@@ -170,38 +162,31 @@ if (pupilPenBtn) {
   });
 }
 
-// Clear local canvas tool
 if (pupilClearBtn && ctx && canvas) {
   pupilClearBtn.addEventListener('click', () => {
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.beginPath();
-    setTimeout(() => {
-      sendBoardSnapshotToTeacher(); 
-    }, 50);
+    setTimeout(() => { sendBoardSnapshotToTeacher(); }, 50);
   });
 }
 
 // ==========================================
-// 6. AUTO-SENDER: PACKS UP THE CANVAS AND SENDS TO TEACHER
+// 6. AUTO-SENDER: SHIPS BASEBOARD SNAPS
 // ==========================================
 function sendBoardSnapshotToTeacher() {
   if (!liveChannel || !canvas) return;
-  
   const snapshotDataUrl = canvas.toDataURL('image/png'); 
 
   liveChannel.send({
     type: 'broadcast',
     event: 'submit-answer',
-    payload: {
-      name: studentName,
-      boardImage: snapshotDataUrl
-    }
+    payload: { name: studentName, boardImage: snapshotDataUrl }
   });
 }
 
 // ==========================================
-// 7. REAL-TIME LISTENER (Listens to Teacher commands)
+// 7. REAL-TIME LISTENER (Intercepts Teacher Commands)
 // ==========================================
 function startLiveConnection(roomCode) {
   if (!supabaseClient) return;
@@ -230,36 +215,82 @@ function startLiveConnection(roomCode) {
         canvas.style.opacity = "1.0";
       }
     })
-    // NEW HISTORICAL MEMORY SYNC LISTENER
     .on('broadcast', { event: 'switch-board' }, ({ payload }) => {
       if (!canvas || !ctx) return;
       
-      // Save what this specific pupil drew on the current board question before moving
       studentBoardsData[currentStudentBoardIndex] = canvas.toDataURL();
-      
-      // Jump to the new board page requested by the teacher
       currentStudentBoardIndex = payload.index;
       
-      // Make sure drawing settings reset safely during transitions
       ctx.globalCompositeOperation = 'source-over';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.beginPath();
       
-      // If this page already contains an answer they drew previously, pull it up!
       if (studentBoardsData[currentStudentBoardIndex]) {
         const img = new Image();
         img.src = studentBoardsData[currentStudentBoardIndex];
         img.onload = () => {
           ctx.drawImage(img, 0, 0);
-          // Sync it immediately back onto the teacher's overview panel grid
           sendBoardSnapshotToTeacher();
         };
       } else {
-        // If it's a blank new page, pass up a clean slate snapshot
         studentBoardsData[currentStudentBoardIndex] = '';
         sendBoardSnapshotToTeacher();
       }
     })
+    
+    // ========================================================================
+    // NEW REAL-TIME BROADCAST POLL INTERCEPTORS
+    // ========================================================================
+    .on('broadcast', { event: 'start-poll' }, ({ payload }) => {
+      if (!pupilWhiteboardView || !pupilPollView || !pupilPollQuestion || !pupilPollOptions || !pupilPollStatus) return;
+      
+      // Hijack view space instantly
+      pupilWhiteboardView.style.display = 'none';
+      pupilPollView.style.display = 'block';
+      pupilPollStatus.style.display = 'none';
+      
+      pupilPollQuestion.textContent = payload.question;
+      pupilPollOptions.innerHTML = ''; // Wipe leftover legacy child options nodes
+      
+      // Generate clean response button elements dynamically
+      payload.options.forEach((optionText, index) => {
+        const btn = document.createElement('button');
+        btn.textContent = optionText;
+        btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #4a4a68; border-radius: 6px; background: #f4f4f9; font-size: 16px; font-weight: bold; cursor: pointer; color: #4a4a68; transition: all 0.2s; outline: none;";
+        
+        btn.onmouseover = () => { btn.style.background = "#4a4a68"; btn.style.color = "#ffffff"; };
+        btn.onmouseout = () => { btn.style.background = "#f4f4f9"; btn.style.color = "#4a4a68"; };
+
+        btn.addEventListener('click', () => {
+          // Send choice index bundle straight back to the teacher's overview layout tracker
+          liveChannel.send({
+            type: 'broadcast',
+            event: 'submit-vote',
+            payload: { studentName: studentName, optionIndex: index }
+          });
+          
+          // Lock buttons to completely disable multiple voting or spamming inputs
+          const allOptionBtns = pupilPollOptions.querySelectorAll('button');
+          allOptionBtns.forEach(b => { 
+            b.disabled = true; 
+            b.style.opacity = "0.5"; 
+            b.style.cursor = "default";
+            b.onmouseover = null; 
+          });
+          
+          pupilPollStatus.style.display = 'block';
+        });
+        
+        pupilPollOptions.appendChild(btn);
+      });
+    })
+    .on('broadcast', { event: 'close-poll' }, () => {
+      if (!pupilWhiteboardView || !pupilPollView) return;
+      // Teacher closed the poll card session: slide them right back to canvas tasks
+      pupilPollView.style.display = 'none';
+      pupilWhiteboardView.style.display = 'block';
+    })
+    
     .subscribe((status) => {
       if (!statusBar) return;
       if (status === 'SUBSCRIBED') {
