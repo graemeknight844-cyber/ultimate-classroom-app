@@ -22,15 +22,37 @@
       
       <header class="top-bar">
         <div class="modes">
-          <button class="active">Whiteboard</button>
-          <button>Quiz</button>
-          <button>Poll</button>
-        </div>
+  <button class="active">Whiteboard</button>
+  <button>Quiz</button>
+  <button id="pollModeBtn">Poll</button> 
+</div>
         <div class="room-info">
           <span class="join-code">Code: <strong>8492</strong></span>
           <span class="pupil-count">0/30 Joined</span>
         </div>
       </header>
+
+      <section id="pollPanel" style="display: none; background: #f4f4f9; border: 1px solid #ccc; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px;">
+  <h3 style="margin-top: 0; color: #4a4a68;">Quick Classroom Poll</h3>
+  
+  <div id="pollSetup">
+    <input type="text" id="pollQuestion" placeholder="Enter poll question here (e.g., Understanding check?)" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+      <input type="text" class="poll-opt" placeholder="Option A" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+      <input type="text" class="poll-opt" placeholder="Option B" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+      <input type="text" class="poll-opt" placeholder="Option C" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+      <input type="text" class="poll-opt" placeholder="Option D" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+    </div>
+    <button id="startPollBtn" style="background: #2ecc71; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Launch Poll</button>
+  </div>
+
+  <div id="pollLiveResults" style="display: none;">
+    <h4 id="livePollQuestion" style="margin: 5px 0 10px 0; color: #333;"></h4>
+    <div id="resultsBars" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+      </div>
+    <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
+  </div>
+</section>
 
       <section class="teacher-stage">
         

@@ -1,5 +1,5 @@
 // ============================================================================
-// 1. SUPABASE SECURITY & CONNECTION (Runs immediately)
+// 1. SUPABASE SECURITY & CONNECTION
 // ============================================================================
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
@@ -29,18 +29,27 @@ let currentBoardIndex = 0;
 let studentSubmissionsHistory = [{}]; 
 let canvasHistory = []; 
 
-// Global DOM references to be filled once DOM is ready
+// POLLING DATA STRUCTURES
+let pollActive = false;
+let activePollData = { question: '', options: [], votes: {} };
+let savedPollsHistory = []; // Keeps track of completed polls for the PDF export
+
+// Global DOM references
 let canvas, ctx, colorPicker, clearBtn, undoBtn;
 let penToolBtn, textToolBtn, imgToolBtn, rubberToolBtn;
 let sizeThicknessSlider, textSizeSlider;
 let prevPageBtn, nextPageBtn, pageText;
 let timerDisplay, freezeBtn, signOutBtn;
 
+// New Polling DOM variables
+let pollModeBtn, pollPanel, pollSetup, pollLiveResults;
+let pollQuestionInput, startPollBtn, endPollBtn, livePollQuestion, resultsBarsContainer;
+
 // ============================================================================
 // INITIALIZATION ENGINE (Fires once HTML is fully loaded)
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Bind DOM Elements
+  // Bind Whiteboard DOM Elements
   canvas = document.getElementById('teacherCanvas');
   ctx = canvas ? canvas.getContext('2d') : null;
   colorPicker = document.getElementById('penColor') || { value: '#333333' };
@@ -63,13 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
   freezeBtn = document.getElementById('freezeBtn');
   signOutBtn = document.querySelector('.sign-out'); 
 
-  // Initialize Canvas Properties
+  // Bind Polling DOM Elements
+  pollModeBtn = document.getElementById('pollModeBtn');
+  pollPanel = document.getElementById('pollPanel');
+  pollSetup = document.getElementById('pollSetup');
+  pollLiveResults = document.getElementById('pollLiveResults');
+  pollQuestionInput = document.getElementById('pollQuestion');
+  startPollBtn = document.getElementById('startPollBtn');
+  endPollBtn = document.getElementById('endPollBtn');
+  livePollQuestion = document.getElementById('livePollQuestion');
+  resultsBarsContainer = document.getElementById('resultsBars');
+
   if (ctx) {
     ctx.lineWidth = sizeThicknessSlider.value;
     ctx.lineCap = 'round';
     ctx.strokeStyle = colorPicker.value;
     
-    // Establish Baseline History Snapshot
     boardsData[0] = canvas.toDataURL();
     canvasHistory.push(boardsData[0]); 
   }
@@ -77,15 +95,15 @@ document.addEventListener('DOMContentLoaded', () => {
   updatePaginationUI();
   setupEventListeners();
 
-  // Connect Realtime Broadcasts
+  // Connect Realtime Broadcast Listener
   if (channel) {
     channel
       .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
+      .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
       .subscribe();
   }
 });
 
-// History Engine Helper
 function pushToHistory() {
   if (!canvas) return;
   canvasHistory.push(canvas.toDataURL());
@@ -118,6 +136,132 @@ function setActiveTool(tool, activeBtn) {
 }
 
 // ============================================================================
+// POLLING LOGIC HUB
+// ============================================================================
+function togglePollPanel() {
+  if (!pollPanel) return;
+  if (pollPanel.style.display === 'none') {
+    pollPanel.style.display = 'block';
+    pollModeBtn.classList.add('active');
+  } else {
+    pollPanel.style.display = 'none';
+    pollModeBtn.classList.remove('active');
+  }
+}
+
+function launchPoll() {
+  const questionText = pollQuestionInput.value.trim() || "Quick Poll";
+  const optionInputs = document.querySelectorAll('.poll-opt');
+  const validOptions = [];
+
+  optionInputs.forEach(input => {
+    if (input.value.trim() !== "") {
+      validOptions.push(input.value.trim());
+    }
+  });
+
+  if (validOptions.length < 2) {
+    alert("Please provide at least two poll options!");
+    return;
+  }
+
+  // Build active state tracking
+  pollActive = true;
+  activePollData = {
+    question: questionText,
+    options: validOptions,
+    votes: {} // Stores studentName: selectedOptionIndex
+  };
+
+  // Switch UI windows inside panel
+  pollSetup.style.display = 'none';
+  pollLiveResults.style.display = 'block';
+  livePollQuestion.textContent = questionText;
+
+  renderLivePollBars();
+
+  // Send broadcast out to current student client channels
+  if (channel) {
+    channel.send({
+      type: 'broadcast',
+      event: 'start-poll',
+      payload: { question: questionText, options: validOptions }
+    });
+  }
+}
+
+function handleIncomingVote(payload) {
+  if (!pollActive) return;
+  // payload structure: { studentName: "John Doe", optionIndex: 0 }
+  activePollData.votes[payload.studentName] = payload.optionIndex;
+  renderLivePollBars();
+}
+
+function renderLivePollBars() {
+  if (!resultsBarsContainer) return;
+  resultsBarsContainer.innerHTML = '';
+
+  const totalVotes = Object.keys(activePollData.votes).length;
+  
+  // Tally totals per index
+  const tally = {};
+  activePollData.options.forEach((_, idx) => tally[idx] = 0);
+  Object.values(activePollData.votes).forEach(voteIdx => {
+    if (tally[voteIdx] !== undefined) tally[voteIdx]++;
+  });
+
+  activePollData.options.forEach((optionText, idx) => {
+    const count = tally[idx];
+    const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+
+    const row = document.createElement('div');
+    row.style.cssText = "display: flex; align-items: center; gap: 10px; font-family: sans-serif;";
+
+    const label = document.createElement('div');
+    label.style.width = '120px';
+    label.style.fontWeight = 'bold';
+    label.style.fontSize = '13px';
+    label.textContent = optionText;
+
+    const barTrack = document.createElement('div');
+    barTrack.style.cssText = "flex-grow: 1; background: #e1e1eb; height: 20px; border-radius: 4px; overflow: hidden; position: relative;";
+
+    const barFill = document.createElement('div');
+    barFill.style.cssText = `background: #4a4a68; width: ${percent}%; height: 100%; transition: width 0.3s ease;`;
+
+    const stats = document.createElement('div');
+    stats.style.width = '70px';
+    stats.style.fontSize = '13px';
+    stats.style.textAlign = 'right';
+    stats.textContent = `${count} vote(s) (${percent}%)`;
+
+    barTrack.appendChild(barFill);
+    row.appendChild(label);
+    row.appendChild(barTrack);
+    row.appendChild(stats);
+    resultsBarsContainer.appendChild(row);
+  });
+}
+
+function closeAndSavePoll() {
+  pollActive = false;
+
+  // Add the current compiled snapshots to memory map arrays
+  savedPollsHistory.push(JSON.parse(JSON.stringify(activePollData)));
+
+  // Clean UI back down to startup paths
+  pollSetup.style.display = 'block';
+  pollLiveResults.style.display = 'none';
+  pollQuestionInput.value = '';
+  document.querySelectorAll('.poll-opt').forEach(i => i.value = '');
+
+  if (channel) {
+    channel.send({ type: 'broadcast', event: 'close-poll' });
+  }
+  alert("Poll results saved securely! They will match up into your exported sessional file report sheets.");
+}
+
+// ============================================================================
 // EVENT LISTENERS WIRING SETUP
 // ============================================================================
 function setupEventListeners() {
@@ -125,6 +269,11 @@ function setupEventListeners() {
   if (textToolBtn) textToolBtn.addEventListener('click', () => setActiveTool('text', textToolBtn));
   if (imgToolBtn) imgToolBtn.addEventListener('click', () => setActiveTool('img', imgToolBtn));
   if (rubberToolBtn) rubberToolBtn.addEventListener('click', () => setActiveTool('rubber', rubberToolBtn));
+
+  // Polling Panel Buttons
+  if (pollModeBtn) pollModeBtn.addEventListener('click', togglePollPanel);
+  if (startPollBtn) startPollBtn.addEventListener('click', launchPoll);
+  if (endPollBtn) endPollBtn.addEventListener('click', closeAndSavePoll);
 
   if (colorPicker) {
     colorPicker.addEventListener('input', (e) => {
@@ -147,17 +296,45 @@ function setupEventListeners() {
       if (isDrawing) { isDrawing = false; ctx.beginPath(); pushToHistory(); }
     });
     canvas.addEventListener('mousemove', draw);
-    
-    // Canvas Click Interface Gateway (Text & Image Placement)
     canvas.addEventListener('click', handleCanvasClick);
   }
 
-  // Undo Activation Wire
-  if (undoBtn) {
-    undoBtn.addEventListener('click', handleUndoAction);
+  if (undoBtn) undoBtn.addEventListener('click', handleUndoAction);
+
+  // Timer Click Action Wire
+  if (timerDisplay) {
+    timerDisplay.style.cursor = "pointer";
+    timerDisplay.addEventListener('click', () => {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        timerDisplay.style.color = ""; 
+      } else {
+        timerDisplay.style.color = "#2ecc71"; 
+        countdownInterval = setInterval(() => {
+          if (totalSeconds > 0) {
+            totalSeconds--;
+            const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+            const secs = (totalSeconds % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `Timer: ${mins}:${secs}`;
+            
+            if (totalSeconds < 60) {
+              timerDisplay.style.color = "#e74c3c"; 
+            } else {
+              timerDisplay.style.color = "#2ecc71";
+            }
+            if (channel) channel.send({ type: 'broadcast', event: 'timer-tick', payload: { seconds: totalSeconds } });
+          } else {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            timerDisplay.style.color = ""; 
+            alert("Time is up!");
+          }
+        }, 1000);
+      }
+    });
   }
 
-  // Pagination Action Triggers
   if (nextPageBtn) {
     nextPageBtn.addEventListener('click', () => {
       saveCurrentBoardState();
@@ -187,7 +364,6 @@ function setupEventListeners() {
     });
   }
 
-  // Board Clearing Trigger
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       if (canvas) {
@@ -203,45 +379,6 @@ function setupEventListeners() {
     });
   }
 
-// Timer Click Action Wire
-  if (timerDisplay) {
-    timerDisplay.style.cursor = "pointer";
-    timerDisplay.addEventListener('click', () => {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-        timerDisplay.style.color = ""; // Reset to default style when paused
-      } else {
-        // Set initial color to green when started
-        timerDisplay.style.color = "#2ecc71"; 
-        
-        countdownInterval = setInterval(() => {
-          if (totalSeconds > 0) {
-            totalSeconds--;
-            const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-            const secs = (totalSeconds % 60).toString().padStart(2, '0');
-            timerDisplay.textContent = `Timer: ${mins}:${secs}`;
-            
-            // Turn red if less than 1 minute (60 seconds) remains
-            if (totalSeconds < 60) {
-              timerDisplay.style.color = "#e74c3c"; 
-            } else {
-              timerDisplay.style.color = "#2ecc71";
-            }
-            
-            if (channel) channel.send({ type: 'broadcast', event: 'timer-tick', payload: { seconds: totalSeconds } });
-          } else {
-            clearInterval(countdownInterval);
-            countdownInterval = null;
-            timerDisplay.style.color = ""; // Reset color
-            alert("Time is up!");
-          }
-        }, 1000);
-      }
-    });
-  }
-
-  // Class Freeze Control Wire
   if (freezeBtn) {
     freezeBtn.addEventListener('click', () => {
       classIsFrozen = !classIsFrozen;
@@ -251,7 +388,6 @@ function setupEventListeners() {
     });
   }
 
-  // Global Session Sign-Out Action Wire
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
       if (supabaseClient) await supabaseClient.auth.signOut();
@@ -286,7 +422,7 @@ function draw(e) {
 }
 
 // ============================================================================
-// CANVAS MOUSE INTERACTION ROUTER (TEXT & IMAGE POPPERS)
+// CANVAS MOUSE INTERACTION ROUTER
 // ============================================================================
 function handleCanvasClick(e) {
   const wrapper = canvas.parentElement;
@@ -401,7 +537,6 @@ function makeElementDraggableAndResizable(el, allowResize) {
   });
 }
 
-// BAKING ENGINE: Flattens movable DOM items onto the layout
 function bakeFloatingObjects() {
   if (!canvas || !ctx) return;
   const wrapper = canvas.parentElement;
@@ -617,7 +752,7 @@ function loadBoardState(index) {
 }
 
 // ============================================================================
-// REPORT BOOKLET EXPORT MODULE
+// ADVANCED REPORT BOOKLET EXPORT MODULE (With Poll Support)
 // ============================================================================
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
@@ -628,6 +763,7 @@ if (exportBtn) {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
     let isFirstPage = true;
 
+    // PAGE GENERATOR TYPE 1: Whiteboard Lesson Slides & Pupil Submissions
     for (let i = 0; i < boardsData.length; i++) {
       if (!boardsData[i]) continue;
 
@@ -688,6 +824,70 @@ if (exportBtn) {
           pupilCellCounter++;
         }
       }
+    }
+
+    // PAGE GENERATOR TYPE 2: Dynamic Poll Analytics Data Sheets
+    if (savedPollsHistory.length > 0) {
+      savedPollsHistory.forEach((poll, index) => {
+        pdf.addPage([1100, 520], 'landscape');
+
+        // Draw Header Track
+        pdf.setFillColor(46, 204, 113); // Clean Green theme for poll sheets
+        pdf.rect(0, 0, 1100, 45, 'F');
+
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text(`SESSION REPORT - COMPLETED CLASSROOM POLL #${index + 1}`, 30, 28);
+
+        // Render Main Question Body text
+        pdf.setTextColor(40, 40, 60);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(18);
+        pdf.text(`Question Asked: ${poll.question}`, 45, 90);
+
+        // Calculate analytical tally properties
+        const totalVotes = Object.keys(poll.votes).length;
+        const tally = {};
+        poll.options.forEach((_, idx) => tally[idx] = 0);
+        Object.values(poll.votes).forEach(voteIdx => { if(tally[voteIdx] !== undefined) tally[voteIdx]++; });
+
+        pdf.setFont("Helvetica", "normal");
+        pdf.setFontSize(12);
+        pdf.setTextColor(100, 100, 120);
+        pdf.text(`Total Registered Responses Collected: ${totalVotes}`, 45, 112);
+
+        // Draw visual analytical bars inside PDF engine layout 
+        let currentYOffset = 150;
+        poll.options.forEach((optionText, idx) => {
+          const count = tally[idx];
+          const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+
+          // Draw Option Label Name
+          pdf.setTextColor(50, 50, 60);
+          pdf.setFont("Helvetica", "bold");
+          pdf.setFontSize(13);
+          pdf.text(optionText, 50, currentYOffset + 14);
+
+          // Draw Graphic Progress Bars background track
+          pdf.setFillColor(230, 230, 238);
+          pdf.rect(200, currentYOffset, 600, 20, 'F');
+
+          // Draw Graphic Progress Bars Fill scale
+          if (percent > 0) {
+            pdf.setFillColor(74, 74, 104);
+            pdf.rect(200, currentYOffset, (600 * (percent / 100)), 20, 'F');
+          }
+
+          // Print Numerical Stat tags beside track bounds
+          pdf.setTextColor(70, 70, 90);
+          pdf.setFont("Helvetica", "bold");
+          pdf.setFontSize(12);
+          pdf.text(`${count} vote(s) (${percent}%)`, 815, currentYOffset + 14);
+
+          currentYOffset += 40; // Step row downwards safely
+        });
+      });
     }
     
     pdf.save('complete-classroom-lesson-session.pdf');
