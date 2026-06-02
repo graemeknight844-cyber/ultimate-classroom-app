@@ -196,6 +196,10 @@ function toggleLessonTimer() {
     timerToggleBtn.style.background = "#e74c3c"; // Switch to red
     enableTimerInputs(false); // Lock inputs while ticking
 
+    // Set initial active green color right at launch
+    timerMinInput.style.color = "#2ecc71";
+    timerSecInput.style.color = "#2ecc71";
+
     timerInterval = setInterval(() => {
       totalSeconds--;
 
@@ -204,18 +208,32 @@ function toggleLessonTimer() {
         isTimerRunning = false;
         timerMinInput.value = "00";
         timerSecInput.value = "00";
+        
+        // Reset colors back to standard white on completion
+        timerMinInput.style.color = "#ffffff";
+        timerSecInput.style.color = "#ffffff";
+        
         timerToggleBtn.textContent = "Start";
         timerToggleBtn.style.background = "#2ecc71";
         enableTimerInputs(true);
         
-        // Visual/Audio alerting anchor point
         triggerTimerCompletionAlert();
       } else {
-        // Calculate dynamic remainder steps
         const m = Math.floor(totalSeconds / 60);
         const s = totalSeconds % 60;
         timerMinInput.value = m.toString().padStart(2, '0');
         timerSecInput.value = s.toString().padStart(2, '0');
+
+        // === DYNAMIC COLOR CODING ===
+        if (totalSeconds <= 30) {
+          // Final 30 seconds: Change text color to warning Red
+          timerMinInput.style.color = "#e74c3c";
+          timerSecInput.style.color = "#e74c3c";
+        } else {
+          // Safe zone: Keep text color active Green
+          timerMinInput.style.color = "#2ecc71";
+          timerSecInput.style.color = "#2ecc71";
+        }
       }
     }, 1000);
   }
