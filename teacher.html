@@ -117,10 +117,19 @@
             <button class="page-btn">&gt;</button>
           </div>
 
-          <div class="timer">Timer: 05:00</div>
-          <button id="freezeBtn">Freeze Class</button>
-        </div>
+          <div class="timer-container" style="display: flex; align-items: center; gap: 8px; background: #2c3e50; padding: 6px 12px; border-radius: 4px; color: white; font-family: 'Segoe UI', sans-serif;">
+  <span style="font-size: 13px; font-weight: bold; color: #bdc3c7;">TIMER:</span>
+  
+  <div style="display: flex; align-items: center; gap: 2px;">
+    <input type="number" id="timerMin" min="0" max="59" value="02" style="width: 35px; background: #34495e; color: white; border: none; text-align: center; font-size: 16px; font-weight: bold; border-radius: 3px; padding: 2px;">
+    <span style="font-weight: bold;">:</span>
+    <input type="number" id="timerSec" min="0" max="59" value="00" style="width: 35px; background: #34495e; color: white; border: none; text-align: center; font-size: 16px; font-weight: bold; border-radius: 3px; padding: 2px;">
+  </div>
 
+  <button id="timerToggleBtn" style="background: #2ecc71; color: white; border: none; padding: 3px 10px; font-weight: bold; font-size: 12px; border-radius: 3px; cursor: pointer; min-width: 55px;">
+    Start
+  </button>
+</div>
       </section>
 
       <section class="pupil-boards">

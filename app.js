@@ -49,6 +49,11 @@ let pollQuestionInput, startPollBtn, endPollBtn, livePollQuestion, resultsBarsCo
 // === MAKE SURE THESE TWO LINES ARE ALIVE HERE ===
 let studentInspectBanner;
 let leavePupilBoardBtn;
+
+// Timer Variables
+let timerInterval = null;
+let isTimerRunning = false;
+let timerMinInput, timerSecInput, timerToggleBtn;
 // ============================================================================
 // INITIALIZATION ENGINE (Fires once HTML is fully loaded)
 // ============================================================================
@@ -75,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
   timerDisplay = document.querySelector('.timer');
   freezeBtn = document.getElementById('freezeBtn');
   signOutBtn = document.querySelector('.sign-out'); 
+
+
 
   // Bind Polling DOM Elements
   pollModeBtn = document.getElementById('pollModeBtn');
@@ -159,6 +166,99 @@ function setActiveTool(tool, activeBtn) {
     if (currentTool === 'text') { canvas.style.cursor = 'text'; }
     else if (currentTool === 'img') { canvas.style.cursor = 'pointer'; }
     else { canvas.style.cursor = 'crosshair'; }
+  }
+}
+
+// ============================================================================
+// INTERACTIVE LESSON COUNTDOWN TIMER ENGINE
+// ============================================================================
+function toggleLessonTimer() {
+  if (isTimerRunning) {
+    // Pause state execution
+    clearInterval(timerInterval);
+    isTimerRunning = false;
+    timerToggleBtn.textContent = "Start";
+    timerToggleBtn.style.background = "#2ecc71"; // Switch back to green
+    enableTimerInputs(true);
+  } else {
+    // Start countdown execution
+    let minutes = parseInt(timerMinInput.value) || 0;
+    let seconds = parseInt(timerSecInput.value) || 0;
+    let totalSeconds = (minutes * 60) + seconds;
+
+    if (totalSeconds <= 0) {
+      alert("Please enter a time greater than 00:00!");
+      return;
+    }
+
+    isTimerRunning = true;
+    timerToggleBtn.textContent = "Pause";
+    timerToggleBtn.style.background = "#e74c3c"; // Switch to red
+    enableTimerInputs(false); // Lock inputs while ticking
+
+    timerInterval = setInterval(() => {
+      totalSeconds--;
+
+      if (totalSeconds <= 0) {
+        clearInterval(timerInterval);
+        isTimerRunning = false;
+        timerMinInput.value = "00";
+        timerSecInput.value = "00";
+        timerToggleBtn.textContent = "Start";
+        timerToggleBtn.style.background = "#2ecc71";
+        enableTimerInputs(true);
+        
+        // Visual/Audio alerting anchor point
+        triggerTimerCompletionAlert();
+      } else {
+        // Calculate dynamic remainder steps
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        timerMinInput.value = m.toString().padStart(2, '0');
+        timerSecInput.value = s.toString().padStart(2, '0');
+      }
+    }, 1000);
+  }
+}
+
+function enableTimerInputs(enable) {
+  if (!timerMinInput || !timerSecInput) return;
+  timerMinInput.disabled = !enable;
+  timerSecInput.disabled = !enable;
+  // Visual tracking state styling
+  timerMinInput.style.background = enable ? "#34495e" : "#2c3e50";
+  timerSecInput.style.background = enable ? "#34495e" : "#2c3e50";
+}
+
+function triggerTimerCompletionAlert() {
+  // Simple visual flash effect on the input boxes to grab teacher attention
+  let flashCount = 0;
+  const alertInterval = setInterval(() => {
+    const isEven = flashCount % 2 === 0;
+    timerMinInput.style.background = isEven ? "#e74c3c" : "#34495e";
+    timerSecInput.style.background = isEven ? "#e74c3c" : "#34495e";
+    flashCount++;
+    if (flashCount >= 6) {
+      clearInterval(alertInterval);
+      timerMinInput.style.background = "#34495e";
+      timerSecInput.style.background = "#34495e";
+    }
+  }, 250);
+
+  // Optional: Play a short, soft system beep if you want audio notification
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.3);
+  } catch (e) {
+    console.log("Audio API not supported or awaiting user interaction gesture.");
   }
 }
 
@@ -340,39 +440,26 @@ function setupEventListeners() {
 
   if (undoBtn) undoBtn.addEventListener('click', handleUndoAction);
 
-  // Timer Click Action Wire
-  if (timerDisplay) {
-    timerDisplay.style.cursor = "pointer";
-    timerDisplay.addEventListener('click', () => {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-        timerDisplay.style.color = ""; 
-      } else {
-        timerDisplay.style.color = "#2ecc71"; 
-        countdownInterval = setInterval(() => {
-          if (totalSeconds > 0) {
-            totalSeconds--;
-            const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-            const secs = (totalSeconds % 60).toString().padStart(2, '0');
-            timerDisplay.textContent = `Timer: ${mins}:${secs}`;
-            
-            if (totalSeconds < 60) {
-              timerDisplay.style.color = "#e74c3c"; 
-            } else {
-              timerDisplay.style.color = "#2ecc71";
-            }
-            if (channel) channel.send({ type: 'broadcast', event: 'timer-tick', payload: { seconds: totalSeconds } });
-          } else {
-            clearInterval(countdownInterval);
-            countdownInterval = null;
-            timerDisplay.style.color = ""; 
-            alert("Time is up!");
-          }
-        }, 1000);
-      }
-    });
+ // Bind Lesson Timer Engine DOM Elements
+  timerMinInput = document.getElementById('timerMin');
+  timerSecInput = document.getElementById('timerSec');
+  timerToggleBtn = document.getElementById('timerToggleBtn');
+
+  if (timerToggleBtn) {
+    timerToggleBtn.addEventListener('click', toggleLessonTimer);
   }
+
+  // Auto-format helper loops: pads single digits with a zero when clicking away (e.g., '5' becomes '05')
+  [timerMinInput, timerSecInput].forEach(input => {
+    if (input) {
+      input.addEventListener('blur', () => {
+        let val = parseInt(input.value) || 0;
+        if (val < 0) val = 0;
+        if (val > 59) val = 59;
+        input.value = val.toString().padStart(2, '0');
+      });
+    }
+  });
 
   if (nextPageBtn) {
     nextPageBtn.addEventListener('click', () => {
