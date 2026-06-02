@@ -253,3 +253,26 @@ canvas {
   padding: 2px 5px;
   z-index: 10;
 }
+
+/* ============================================================================
+   LESSON COUNTDOWN TIMER CLEANUP RULES
+   ============================================================================ */
+
+/* Remove native up/down spin arrows for Chrome, Safari, Edge, and Opera */
+#timerMin::-webkit-outer-spin-button,
+#timerMin::-webkit-inner-spin-button,
+#timerSec::-webkit-outer-spin-button,
+#timerSec::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Remove native up/down spin arrows for Firefox */
+#timerMin,
+#timerSec {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  box-sizing: border-box;
+  text-align: center;   /* Ensures numbers stay dead center */
+  outline: none;       /* Removes the default harsh browser border when clicked */
+}
