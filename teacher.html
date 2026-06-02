@@ -45,13 +45,16 @@
         <div class="canvas-wrapper" style="border-top-left-radius: 0; border-top-right-radius: 0;">
           
           <div class="tool-bar-vertical">
-            <button class="tool-btn active" id="penToolBtn">Pen</button>
-            <button class="tool-btn" id="rubberToolBtn">Rubber</button>
-            <button class="tool-btn" id="textToolBtn">Text</button>
-            <button class="tool-btn" id="imgToolBtn">Img</button>
-            <hr class="tool-divider">
-            <input type="color" id="penColor" value="#333333">
-          </div>
+  <button class="tool-btn active" id="penToolBtn">Pen</button>
+  <button class="tool-btn" id="rubberToolBtn">Rubber</button>
+  <button class="tool-btn" id="textToolBtn">Text</button>
+  <button class="tool-btn" id="imgToolBtn">Img</button>
+  
+  <button class="tool-btn" id="undoBtn">Undo</button>
+  
+  <hr class="tool-divider">
+  <input type="color" id="penColor" value="#333333">
+</div>
           
           <div class="canvas-position-wrapper" style="position: relative; display: inline-block; max-width: 100%; flex-grow: 1;">
             <canvas id="teacherCanvas" width="1100" height="520" style="touch-action: none; background: #ffffff; border: 1px solid #ccc; max-width: 100%; height: auto; display: block;"></canvas>
