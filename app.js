@@ -13,7 +13,8 @@ async function checkUserSession() {
 }
 checkUserSession();
 
-const channel = supabaseClient ? supabaseClient.channel('room_8492') : null;
+// CHANGE THIS LINE RIGHT HERE:
+let channel = null;
 
 // ============================================================================
 // APPLICATION GLOBAL STATE VARIABLES
@@ -95,14 +96,26 @@ document.addEventListener('DOMContentLoaded', () => {
   updatePaginationUI();
   setupEventListeners();
 
-  // Connect Realtime Broadcast Listener
-  if (channel) {
+ // Connect Realtime Broadcast Listener
+  // Replace your old 'if (channel)' block with this function:
+  window.startTeacherConnection = function(roomCode) {
+    if (!supabaseClient) return;
+
+    // Dynamically connect to the room code
+    channel = supabaseClient.channel(`room_${roomCode}`);
+
+    // Attach listeners to the new dynamic channel
     channel
       .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
       .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
-      .subscribe();
-  }
-});
+      .subscribe((status) => {
+        console.log(`Teacher channel status for room_${roomCode}:`, status);
+      });
+  };
+
+  // Do you have a fixed room code or a variable? 
+  // For now, let's call it automatically with your code so it connects instantly:
+  window.startTeacherConnection("8492");
 
 function pushToHistory() {
   if (!canvas) return;

@@ -25,7 +25,7 @@ const pupilRubberBtn = document.getElementById('pupilRubberBtn');
 const pupilPenBtn = document.getElementById('pupilPenBtn');
 const pupilThicknessSlider = document.getElementById('pupilThickness') || { value: 4 };
 
-// New Poll UI Engine Selectors
+// Poll UI Elements
 const pupilWhiteboardView = document.getElementById('pupilWhiteboardView');
 const pupilPollView = document.getElementById('pupilPollView');
 const pupilPollQuestion = document.getElementById('pupilPollQuestion');
@@ -186,14 +186,13 @@ function sendBoardSnapshotToTeacher() {
 }
 
 // ==========================================
-// 7. REAL-TIME LISTENER (Intercepts Teacher Commands)
+// 7. REAL-TIME LISTENER (Standardized Channel Connection)
 // ==========================================
 function startLiveConnection(roomCode) {
   if (!supabaseClient) return;
 
-  liveChannel = supabaseClient.channel(`room_${roomCode}`, {
-    config: { broadcast: { self: false } } 
-  });
+  // Simplification Fix: Strip config restrictions to fix event channel dropouts
+  liveChannel = supabaseClient.channel(`room_${roomCode}`);
 
   liveChannel
     .on('broadcast', { event: 'timer-tick' }, ({ payload }) => {
@@ -239,54 +238,56 @@ function startLiveConnection(roomCode) {
     })
     
     // ========================================================================
-    // NEW REAL-TIME BROADCAST POLL INTERCEPTORS
+    // RE-WIRED BROADCAST POLL INTERCEPTORS
     // ========================================================================
-    .on('broadcast', { event: 'start-poll' }, ({ payload }) => {
+    .on('broadcast', { event: 'start-poll' }, (response) => {
       if (!pupilWhiteboardView || !pupilPollView || !pupilPollQuestion || !pupilPollOptions || !pupilPollStatus) return;
       
+      // Safety fix: Support flat payload variables if nested keys fail
+      const data = response.payload || response;
+      if (!data || !data.question) return;
+
       // Hijack view space instantly
       pupilWhiteboardView.style.display = 'none';
       pupilPollView.style.display = 'block';
       pupilPollStatus.style.display = 'none';
       
-      pupilPollQuestion.textContent = payload.question;
-      pupilPollOptions.innerHTML = ''; // Wipe leftover legacy child options nodes
+      pupilPollQuestion.textContent = data.question;
+      pupilPollOptions.innerHTML = ''; 
       
-      // Generate clean response button elements dynamically
-      payload.options.forEach((optionText, index) => {
-        const btn = document.createElement('button');
-        btn.textContent = optionText;
-        btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #4a4a68; border-radius: 6px; background: #f4f4f9; font-size: 16px; font-weight: bold; cursor: pointer; color: #4a4a68; transition: all 0.2s; outline: none;";
-        
-        btn.onmouseover = () => { btn.style.background = "#4a4a68"; btn.style.color = "#ffffff"; };
-        btn.onmouseout = () => { btn.style.background = "#f4f4f9"; btn.style.color = "#4a4a68"; };
+      if (data.options && Array.isArray(data.options)) {
+        data.options.forEach((optionText, index) => {
+          const btn = document.createElement('button');
+          btn.textContent = optionText;
+          btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #4a4a68; border-radius: 6px; background: #f4f4f9; font-size: 16px; font-weight: bold; cursor: pointer; color: #4a4a68; transition: all 0.2s; outline: none;";
+          
+          btn.onmouseover = () => { btn.style.background = "#4a4a68"; btn.style.color = "#ffffff"; };
+          btn.onmouseout = () => { btn.style.background = "#f4f4f9"; btn.style.color = "#4a4a68"; };
 
-        btn.addEventListener('click', () => {
-          // Send choice index bundle straight back to the teacher's overview layout tracker
-          liveChannel.send({
-            type: 'broadcast',
-            event: 'submit-vote',
-            payload: { studentName: studentName, optionIndex: index }
+          btn.addEventListener('click', () => {
+            liveChannel.send({
+              type: 'broadcast',
+              event: 'submit-vote',
+              payload: { studentName: studentName, optionIndex: index }
+            });
+            
+            const allOptionBtns = pupilPollOptions.querySelectorAll('button');
+            allOptionBtns.forEach(b => { 
+              b.disabled = true; 
+              b.style.opacity = "0.5"; 
+              b.style.cursor = "default";
+              b.onmouseover = null; 
+            });
+            
+            pupilPollStatus.style.display = 'block';
           });
           
-          // Lock buttons to completely disable multiple voting or spamming inputs
-          const allOptionBtns = pupilPollOptions.querySelectorAll('button');
-          allOptionBtns.forEach(b => { 
-            b.disabled = true; 
-            b.style.opacity = "0.5"; 
-            b.style.cursor = "default";
-            b.onmouseover = null; 
-          });
-          
-          pupilPollStatus.style.display = 'block';
+          pupilPollOptions.appendChild(btn);
         });
-        
-        pupilPollOptions.appendChild(btn);
-      });
+      }
     })
     .on('broadcast', { event: 'close-poll' }, () => {
       if (!pupilWhiteboardView || !pupilPollView) return;
-      // Teacher closed the poll card session: slide them right back to canvas tasks
       pupilPollView.style.display = 'none';
       pupilWhiteboardView.style.display = 'block';
     })
