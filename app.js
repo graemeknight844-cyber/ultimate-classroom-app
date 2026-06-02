@@ -152,7 +152,7 @@ function setActiveTool(tool, activeBtn) {
 }
 
 // ============================================================================
-// POLLING LOGIC HUB
+// POLLING LOGIC HUB - WITH CORRECT ANSWER TRACKING
 // ============================================================================
 function togglePollPanel() {
   if (!pollPanel) return;
@@ -169,10 +169,18 @@ function launchPoll() {
   const questionText = pollQuestionInput.value.trim() || "Quick Poll";
   const optionInputs = document.querySelectorAll('.poll-opt');
   const validOptions = [];
+  let detectedCorrectIndex = -1;
 
-  optionInputs.forEach(input => {
+  // Find which option the teacher marked as correct
+  const correctRadios = document.querySelectorAll('.poll-correct-radio');
+
+  optionInputs.forEach((input, idx) => {
     if (input.value.trim() !== "") {
       validOptions.push(input.value.trim());
+      // If this radio element is checked, note its current valid array index position
+      if (correctRadios[idx] && correctRadios[idx].checked) {
+        detectedCorrectIndex = validOptions.length - 1;
+      }
     }
   });
 
@@ -181,11 +189,12 @@ function launchPoll() {
     return;
   }
 
-  // Build active state tracking
+  // Build active state tracking with accuracy profiles
   pollActive = true;
   activePollData = {
     question: questionText,
     options: validOptions,
+    correctAnswerIndex: detectedCorrectIndex, // Saved safely! (-1 if none selected)
     votes: {} // Stores studentName: selectedOptionIndex
   };
 
@@ -208,7 +217,6 @@ function launchPoll() {
 
 function handleIncomingVote(payload) {
   if (!pollActive) return;
-  // payload structure: { studentName: "John Doe", optionIndex: 0 }
   activePollData.votes[payload.studentName] = payload.optionIndex;
   renderLivePollBars();
 }
@@ -219,7 +227,6 @@ function renderLivePollBars() {
 
   const totalVotes = Object.keys(activePollData.votes).length;
   
-  // Tally totals per index
   const tally = {};
   activePollData.options.forEach((_, idx) => tally[idx] = 0);
   Object.values(activePollData.votes).forEach(voteIdx => {
@@ -231,22 +238,30 @@ function renderLivePollBars() {
     const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
 
     const row = document.createElement('div');
-    row.style.cssText = "display: flex; align-items: center; gap: 10px; font-family: sans-serif;";
+    row.style.cssText = "display: flex; align-items: center; gap: 10px; font-family: sans-serif; margin-bottom: 6px;";
 
     const label = document.createElement('div');
-    label.style.width = '120px';
+    label.style.width = '140px';
     label.style.fontWeight = 'bold';
     label.style.fontSize = '13px';
-    label.textContent = optionText;
+    
+    // Visually flag the correct answer on the teacher's live dashboard view
+    if (activePollData.correctAnswerIndex === idx) {
+      label.innerHTML = `✅ <span style="color: #2ecc71;">${optionText}</span>`;
+    } else {
+      label.textContent = optionText;
+    }
 
     const barTrack = document.createElement('div');
     barTrack.style.cssText = "flex-grow: 1; background: #e1e1eb; height: 20px; border-radius: 4px; overflow: hidden; position: relative;";
 
     const barFill = document.createElement('div');
-    barFill.style.cssText = `background: #4a4a68; width: ${percent}%; height: 100%; transition: width 0.3s ease;`;
+    // Color code the bar chart fill: Green if it's the correct option, charcoal gray if standard
+    const barColor = (activePollData.correctAnswerIndex === idx) ? '#2ecc71' : '#4a4a68';
+    barFill.style.cssText = `background: ${barColor}; width: ${percent}%; height: 100%; transition: width 0.3s ease;`;
 
     const stats = document.createElement('div');
-    stats.style.width = '70px';
+    stats.style.width = '85px';
     stats.style.fontSize = '13px';
     stats.style.textAlign = 'right';
     stats.textContent = `${count} vote(s) (${percent}%)`;
@@ -261,11 +276,8 @@ function renderLivePollBars() {
 
 function closeAndSavePoll() {
   pollActive = false;
-
-  // Add the current compiled snapshots to memory map arrays
   savedPollsHistory.push(JSON.parse(JSON.stringify(activePollData)));
 
-  // Clean UI back down to startup paths
   pollSetup.style.display = 'block';
   pollLiveResults.style.display = 'none';
   pollQuestionInput.value = '';
@@ -274,7 +286,7 @@ function closeAndSavePoll() {
   if (channel) {
     channel.send({ type: 'broadcast', event: 'close-poll' });
   }
-  alert("Poll results saved securely! They will match up into your exported sessional file report sheets.");
+  alert("Poll results saved securely with correct criteria metrics!");
 }
 
 // ============================================================================
@@ -769,7 +781,7 @@ function loadBoardState(index) {
 }
 
 // ============================================================================
-// ADVANCED REPORT BOOKLET EXPORT MODULE (With Poll Support)
+// ADVANCED REPORT BOOKLET EXPORT MODULE (With Correct/Incorrect Grid Mapping)
 // ============================================================================
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
@@ -843,7 +855,7 @@ if (exportBtn) {
       }
     }
 
-    // PAGE GENERATOR TYPE 2: Dynamic Poll Analytics Data Sheets
+    // PAGE GENERATOR TYPE 2: Dynamic Poll Analytics Data Sheets (with Answer Criteria Mapping)
     if (savedPollsHistory.length > 0) {
       savedPollsHistory.forEach((poll, index) => {
         pdf.addPage([1100, 520], 'landscape');
@@ -867,72 +879,93 @@ if (exportBtn) {
         const voterNames = Object.keys(poll.votes);
         const totalVotes = voterNames.length;
         const tally = {};
+        let totalCorrectAnswersCount = 0;
+
         poll.options.forEach((_, idx) => tally[idx] = 0);
-        Object.values(poll.votes).forEach(voteIdx => { if(tally[voteIdx] !== undefined) tally[voteIdx]++; });
+        Object.values(poll.votes).forEach(voteIdx => { 
+          if(tally[voteIdx] !== undefined) tally[voteIdx]++; 
+        });
+
+        // Count how many students matched the correct criteria benchmark choice index
+        if (poll.correctAnswerIndex !== undefined && poll.correctAnswerIndex !== -1) {
+          voterNames.forEach(name => {
+            if (poll.votes[name] === poll.correctAnswerIndex) {
+              totalCorrectAnswersCount++;
+            }
+          });
+        }
+
+        const classAccuracyPercentage = totalVotes > 0 ? Math.round((totalCorrectAnswersCount / totalVotes) * 100) : 0;
 
         pdf.setFont("Helvetica", "normal");
         pdf.setFontSize(12);
         pdf.setTextColor(100, 100, 120);
-        pdf.text(`Total Registered Responses Collected: ${totalVotes}`, 45, 105);
+        
+        let statsLabelString = `Total Registered Responses Collected: ${totalVotes}`;
+        if (poll.correctAnswerIndex !== -1) {
+          statsLabelString += `   |   Overall Classroom Accuracy: ${classAccuracyPercentage}% (${totalCorrectAnswersCount}/${totalVotes})`;
+        }
+        pdf.text(statsLabelString, 45, 105);
 
         // Draw visual analytical bars inside PDF engine layout 
         let currentYOffset = 135;
         poll.options.forEach((optionText, idx) => {
           const count = tally[idx];
           const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+          const isThisOptionCorrect = (poll.correctAnswerIndex === idx);
 
-          // Draw Option Label Name
-          pdf.setTextColor(50, 50, 60);
+          // Append correct marker string to options labels inside PDF document
+          const finalOptionLabel = isThisOptionCorrect ? `* ${optionText} [CORRECT]` : optionText;
+
+          pdf.setTextColor(isThisOptionCorrect ? 39 : 50, isThisOptionCorrect ? 174 : 50, isThisOptionCorrect ? 96 : 60);
           pdf.setFont("Helvetica", "bold");
           pdf.setFontSize(13);
-          pdf.text(optionText, 50, currentYOffset + 14);
+          pdf.text(finalOptionLabel, 50, currentYOffset + 14);
 
-          // Draw Graphic Progress Bars background track
+          // Background track
           pdf.setFillColor(230, 230, 238);
-          pdf.rect(200, currentYOffset, 600, 20, 'F');
+          pdf.rect(250, currentYOffset, 550, 20, 'F');
 
-          // Draw Graphic Progress Bars Fill scale
+          // Progress bar fill (Green if correct choice, default navy slate if incorrect tracking choice)
           if (percent > 0) {
-            pdf.setFillColor(74, 74, 104);
-            pdf.rect(200, currentYOffset, (600 * (percent / 100)), 20, 'F');
+            pdf.setFillColor(isThisOptionCorrect ? 46 : 74, isThisOptionCorrect ? 204 : 74, isThisOptionCorrect ? 113 : 104);
+            pdf.rect(250, currentYOffset, (550 * (percent / 100)), 20, 'F');
           }
 
-          // Print Numerical Stat tags beside track bounds
+          // Numerical labels beside bounds
           pdf.setTextColor(70, 70, 90);
           pdf.setFont("Helvetica", "bold");
           pdf.setFontSize(12);
           pdf.text(`${count} vote(s) (${percent}%)`, 815, currentYOffset + 14);
 
-          currentYOffset += 32; // Step row downwards safely
+          currentYOffset += 32; 
         });
 
         // --------------------------------------------------------------------
-        // NEW ADVANCED ADDITION: DETAILED PUPIL BREAKDOWN TABLE
+        // DETAILED PUPIL BREAKDOWN MATRIX (WITH HIGH-CONTRAST ASSESSMENT COLORS)
         // --------------------------------------------------------------------
-        currentYOffset += 15; // Give breathing space under the charts
+        currentYOffset += 15; 
         
-        // Draw Table Section Header
         pdf.setTextColor(40, 40, 60);
         pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(14);
         pdf.text("Individual Pupil Response Grid", 45, currentYOffset);
         currentYOffset += 12;
 
-        // Draw Table Header Row Background
+        // Table Header row background line
         pdf.setFillColor(74, 74, 104);
         pdf.rect(45, currentYOffset, 1010, 24, 'F');
 
-        // Draw Table Headers
         pdf.setTextColor(255, 255, 255);
         pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(11);
         pdf.text("Pupil Name", 60, currentYOffset + 16);
-        pdf.text("Selected Option / Response Given", 400, currentYOffset + 16);
+        pdf.text("Selected Option / Response Given", 350, currentYOffset + 16);
+        pdf.text("Assessment Result", 850, currentYOffset + 16);
 
         currentYOffset += 24;
 
         if (totalVotes === 0) {
-          // Fallback if no votes were dropped
           pdf.setDrawColor(215, 215, 225);
           pdf.rect(45, currentYOffset, 1010, 24, 'S');
           pdf.setTextColor(130, 130, 140);
@@ -940,13 +973,11 @@ if (exportBtn) {
           pdf.setFontSize(11);
           pdf.text("No active student submissions recorded for this poll segment.", 60, currentYOffset + 16);
         } else {
-          // Populate student matrix lines dynamically
           voterNames.forEach((studentName, sIdx) => {
-            // Check if table row is spilling past canvas bounds; overflow down to a clean page if needed
+            // Check canvas page boundaries overflow limit
             if (currentYOffset > 480) {
               pdf.addPage([1100, 520], 'landscape');
               
-              // Sticky Sub-Header on new overflow page
               pdf.setFillColor(90, 90, 115);
               pdf.rect(0, 0, 1100, 35, 'F');
               pdf.setTextColor(255, 255, 255);
@@ -954,7 +985,6 @@ if (exportBtn) {
               pdf.setFontSize(13);
               pdf.text(`PUPIL BREAKDOWN MATRIX - POLL #${index + 1} (CONTINUED)`, 30, 22);
               
-              // Re-draw Table Header on new page
               currentYOffset = 60;
               pdf.setFillColor(74, 74, 104);
               pdf.rect(45, currentYOffset, 1010, 24, 'F');
@@ -962,34 +992,59 @@ if (exportBtn) {
               pdf.setFont("Helvetica", "bold");
               pdf.setFontSize(11);
               pdf.text("Pupil Name", 60, currentYOffset + 16);
-              pdf.text("Selected Option / Response Given", 400, currentYOffset + 16);
+              pdf.text("Selected Option / Response Given", 350, currentYOffset + 16);
+              pdf.text("Assessment Result", 850, currentYOffset + 16);
               currentYOffset += 24;
             }
 
-            // Alternating rows zebra striping styling for clear legibility
-            if (sIdx % 2 === 0) {
-              pdf.setFillColor(245, 245, 250);
+            const chosenIndex = poll.votes[studentName];
+            const isCorrect = (poll.correctAnswerIndex !== -1 && chosenIndex === poll.correctAnswerIndex);
+            const hasNoCorrectCriteriaSet = (poll.correctAnswerIndex === -1);
+
+            // Row background mapping: Green if correct, light Red if incorrect, standard zebra striping if no key set
+            if (hasNoCorrectCriteriaSet) {
+              if (sIdx % 2 === 0) {
+                pdf.setFillColor(245, 245, 250);
+                pdf.rect(45, currentYOffset, 1010, 22, 'F');
+              }
+            } else {
+              if (isCorrect) {
+                pdf.setFillColor(233, 247, 239); // Clean tint soft translucent green block
+              } else {
+                pdf.setFillColor(253, 237, 237); // Clean tint soft translucent red block
+              }
               pdf.rect(45, currentYOffset, 1010, 22, 'F');
             }
             
-            // Draw row borders
+            // Draw standard matrix gridline rules
             pdf.setDrawColor(225, 225, 235);
             pdf.rect(45, currentYOffset, 1010, 22, 'S');
 
-            // Write Student Profile Data Elements
+            // Print student row values 
             pdf.setTextColor(50, 50, 60);
             pdf.setFont("Helvetica", "bold");
             pdf.setFontSize(11);
             pdf.text(studentName, 60, currentYOffset + 15);
 
-            // Fetch string match translation of index response safely
-            const chosenIndex = poll.votes[studentName];
             const chosenOptionStringText = poll.options[chosenIndex] || `Unknown Choice (Index ${chosenIndex})`;
-
             pdf.setFont("Helvetica", "normal");
-            pdf.text(chosenOptionStringText, 400, currentYOffset + 15);
+            pdf.text(chosenOptionStringText, 350, currentYOffset + 15);
 
-            currentYOffset += 22; // Slide marker line spacing step down
+            // Print column evaluation stamps
+            if (hasNoCorrectCriteriaSet) {
+              pdf.setTextColor(110, 110, 120);
+              pdf.text("Ungraded Poll Survey", 850, currentYOffset + 15);
+            } else if (isCorrect) {
+              pdf.setTextColor(39, 174, 96); // Vibrant deep green font text
+              pdf.setFont("Helvetica", "bold");
+              pdf.text("CORRECT", 850, currentYOffset + 15);
+            } else {
+              pdf.setTextColor(192, 57, 43); // Vibrant deep red font text
+              pdf.setFont("Helvetica", "bold");
+              pdf.text("INCORRECT", 850, currentYOffset + 15);
+            }
+
+            currentYOffset += 22; 
           });
         }
       });
