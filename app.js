@@ -122,7 +122,7 @@ function makeElementDraggableAndResizable(el, allowResize) {
   });
 }
 
-// BAKING ENGINE: Flattens movable DOM items accurately onto the underlying canvas array layout
+// BAKING ENGINE: Flattens movable DOM items accurately onto the underlying canvas layout
 function bakeFloatingObjects() {
   if (!canvas || !ctx) return;
   const wrapper = canvas.parentElement;
@@ -299,7 +299,6 @@ function getCanvasCoordinates(e) {
   };
 }
 
-// Fixed Drawing Core Intercepting Sliders Directly
 function draw(e) {
   if (!isDrawing || (currentTool !== 'pen' && currentTool !== 'rubber') || !ctx) return;
   const coords = getCanvasCoordinates(e);
@@ -350,19 +349,34 @@ if (canvas) {
     const clickX = e.clientX - wrapperRect.left;
     const clickY = e.clientY - wrapperRect.top;
 
+    // --- REVISED: ELASTIC AUTO-GROWING TEXT BOX CORE ---
     if (currentTool === 'text') {
+      const userSelectedSize = parseInt(textSizeSlider.value) || 24;
+      
       const textWrapper = document.createElement('div');
       textWrapper.className = 'floating-canvas-object text-type-wrapper';
-      textWrapper.style.cssText = `position: absolute; left: ${clickX}px; top: ${clickY - 15}px; border: 2px dashed #4a4a68; cursor: move; background: transparent; padding: 2px; display: inline-block;`;
+      textWrapper.style.cssText = `position: absolute; left: ${clickX}px; top: ${clickY - (userSelectedSize / 2)}px; border: 2px dashed #4a4a68; cursor: move; background: transparent; padding: 4px; display: inline-block; z-index: 1000;`;
 
       const input = document.createElement('input');
       input.type = 'text';
-      const userSelectedSize = textSizeSlider.value || 24;
-      input.style.cssText = `font-size: ${userSelectedSize}px; font-weight: bold; font-family: "Segoe UI", sans-serif; border: none; background: transparent; color: ${colorPicker.value}; outline: none; width: 200px;`;
+      input.placeholder = "Type here...";
+      input.style.cssText = `font-size: ${userSelectedSize}px; font-weight: bold; font-family: "Segoe UI", sans-serif; border: none; background: transparent; color: ${colorPicker.value}; outline: none; min-width: 120px; padding: 0; margin: 0; line-height: 1;`;
+      
+      // Live scaling mechanics checking length vs character sizes
+      const autoGrowWidth = () => {
+        const textLength = input.value.length || input.placeholder.length;
+        const dynamicCalculatedWidth = textLength * (userSelectedSize * 0.62) + 20;
+        input.style.width = `${Math.max(120, dynamicCalculatedWidth)}px`;
+      };
+
+      autoGrowWidth();
+      input.addEventListener('input', autoGrowWidth);
       
       textWrapper.appendChild(input);
       wrapper.appendChild(textWrapper);
+      
       input.focus();
+      input.select();
 
       makeElementDraggableAndResizable(textWrapper, false);
 
@@ -436,7 +450,7 @@ if (nextPageBtn) {
     currentBoardIndex++;
     if (currentBoardIndex >= boardsData.length) {
       boardsData.push(''); 
-      studentSubmissionsHistory.push({}); // Allocate blank submissions map container for the new page slot
+      studentSubmissionsHistory.push({}); 
       if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
       clearStudentThumbnailsDOM();
       updatePaginationUI();
@@ -520,7 +534,7 @@ if (signOutBtn) {
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
-    saveCurrentBoardState(); // Lock down last active page items
+    saveCurrentBoardState(); 
     
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
@@ -535,8 +549,7 @@ if (exportBtn) {
       if (!isFirstPage) { pdf.addPage([1100, 520], 'landscape'); }
       isFirstPage = false;
 
-      // Draw Top Brand Title Bar Block
-      pdf.setFillColor(74, 74, 104); // Deep charcoal #4a4a68 matching template
+      pdf.setFillColor(74, 74, 104); 
       pdf.rect(0, 0, 1100, 45, 'F');
       
       pdf.setTextColor(255, 255, 255);
@@ -544,11 +557,10 @@ if (exportBtn) {
       pdf.setFontSize(16);
       pdf.text(`LESSON SLIDE SHEET ${i + 1} - TEACHER QUESTION/TASK`, 30, 28);
 
-      // Append Teacher Canvas Image Vector Drawing
       pdf.addImage(boardsData[i], 'PNG', 30, 65, 1040, 435);
 
       // ----------------------------------------------------------------------
-      // PHASE B: COMPLIMENTARY PUPIL REVIEWS GRID PAGES (Calculates 2x2 Layout Matrix)
+      // PHASE B: COMPLIMENTARY PUPIL REVIEWS GRID PAGES (2x2 Matrix)
       // ----------------------------------------------------------------------
       const answersForThisBoard = studentSubmissionsHistory[i] || {};
       const studentNames = Object.keys(answersForThisBoard);
@@ -557,11 +569,9 @@ if (exportBtn) {
         let pupilCellCounter = 0;
 
         for (let s = 0; s < studentNames.length; s++) {
-          // Every 4 entries triggers a fresh landscape panel page breakout
           if (pupilCellCounter % 4 === 0) {
             pdf.addPage([1100, 520], 'landscape');
             
-            // Draw Pupil Answer subhead title bar strip
             pdf.setFillColor(90, 90, 115);
             pdf.rect(0, 0, 1100, 40, 'F');
             pdf.setTextColor(255, 255, 255);
@@ -573,26 +583,22 @@ if (exportBtn) {
           const currentPupilName = studentNames[s];
           const pupilImgData = answersForThisBoard[currentPupilName];
 
-          // Compute exact x/y grid column and row placement boxes
           const col = pupilCellCounter % 2; 
           const row = Math.floor((pupilCellCounter % 4) / 2);
 
           const x = 40 + (col * 530);
           const y = 65 + (row * 225);
 
-          // Draw an aesthetic framing placeholder background shell
           pdf.setFillColor(245, 245, 250);
           pdf.rect(x, y, 500, 210, 'F');
           pdf.setDrawColor(215, 215, 225);
           pdf.rect(x, y, 500, 210, 'S');
 
-          // Print Pupil Identifier Header Label
           pdf.setTextColor(50, 50, 70);
           pdf.setFont("Helvetica", "bold");
           pdf.setFontSize(13);
           pdf.text(`Pupil Workspace: ${currentPupilName}`, x + 15, y + 22);
 
-          // Embed pupil whiteboard answer
           if (pupilImgData) {
             pdf.addImage(pupilImgData, 'PNG', x + 15, y + 32, 470, 163);
           }
@@ -602,7 +608,6 @@ if (exportBtn) {
       }
     }
     
-    // Save report document
     pdf.save('complete-classroom-lesson-session.pdf');
   });
 }
