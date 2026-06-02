@@ -37,8 +37,6 @@ let savedPollsHistory = []; // Keeps track of completed polls for the PDF export
 
 // Global DOM references
 let canvas, ctx, colorPicker, clearBtn, undoBtn;
-// ... (your existing elements)
-let studentInspectBanner, leavePupilBoardBtn; // <-- ADD THESE HERE
 let penToolBtn, textToolBtn, imgToolBtn, rubberToolBtn;
 let sizeThicknessSlider, textSizeSlider;
 let prevPageBtn, nextPageBtn, pageText;
@@ -48,6 +46,9 @@ let timerDisplay, freezeBtn, signOutBtn;
 let pollModeBtn, pollPanel, pollSetup, pollLiveResults;
 let pollQuestionInput, startPollBtn, endPollBtn, livePollQuestion, resultsBarsContainer;
 
+// === MAKE SURE THESE TWO LINES ARE ALIVE HERE ===
+let studentInspectBanner;
+let leavePupilBoardBtn;
 // ============================================================================
 // INITIALIZATION ENGINE (Fires once HTML is fully loaded)
 // ============================================================================
@@ -775,7 +776,7 @@ function revertToTeacherPresentationView() {
   }
 }
   if (liveImg) { liveImg.src = studentData.boardImage; }
-}
+
 
 function clearStudentThumbnailsDOM() {
   document.querySelectorAll('.mini-board').forEach(slot => { slot.innerHTML = ''; });
