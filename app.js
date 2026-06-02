@@ -111,6 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
     boardsData[0] = canvas.toDataURL();
     canvasHistory.push(boardsData[0]); 
   }
+
+  // Bind Quiz Master Dashboard Component Elements
+  quizPanel = document.getElementById('quizPanel');
+  quizModeSelect = document.getElementById('quizModeSelect');
+  quizQuestionInput = document.getElementById('quizQuestion');
+  launchQuizBtn = document.getElementById('launchQuizBtn');
+  endQuizBtn = document.getElementById('endQuizBtn');
+  quizLiveEngine = document.getElementById('quizLiveEngine');
+  quizEngineStatus = document.getElementById('quizEngineStatus');
+  quizDataDisplayContainer = document.getElementById('quizDataDisplayContainer');
   
   updatePaginationUI();
   setupEventListeners();
@@ -427,8 +437,40 @@ function setupEventListeners() {
   if (imgToolBtn) imgToolBtn.addEventListener('click', () => setActiveTool('img', imgToolBtn));
   if (rubberToolBtn) rubberToolBtn.addEventListener('click', () => setActiveTool('rubber', rubberToolBtn));
 
-  // Polling Panel Buttons
-  if (pollModeBtn) pollModeBtn.addEventListener('click', togglePollPanel);
+  // ============================================================================
+  // INTERACTIVE MODE SWITCHER HUB
+  // ============================================================================
+  const whiteboardModeBtn = document.getElementById('whiteboardModeBtn');
+  const quizModeBtn = document.getElementById('quizModeBtn');
+
+  function switchActiveDashboardView(selectedMode) {
+    // 1. Reset all panels to hidden state
+    if (pollPanel) pollPanel.style.display = 'none';
+    if (quizPanel) quizPanel.style.display = 'none';
+    
+    // 2. Remove active class states from all header buttons
+    [whiteboardModeBtn, quizModeBtn, pollModeBtn].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+
+    // 3. Selectively reveal chosen focus zone
+    if (selectedMode === 'poll' && pollPanel) {
+      pollPanel.style.display = 'block';
+      if (pollModeBtn) pollModeBtn.classList.add('active');
+    } else if (selectedMode === 'quiz' && quizPanel) {
+      quizPanel.style.display = 'block';
+      if (quizModeBtn) quizModeBtn.classList.add('active');
+    } else if (selectedMode === 'whiteboard') {
+      if (whiteboardModeBtn) whiteboardModeBtn.classList.add('active');
+    }
+  }
+
+  // Attach direct trigger listeners
+  if (whiteboardModeBtn) whiteboardModeBtn.addEventListener('click', () => switchActiveDashboardView('whiteboard'));
+  if (pollModeBtn) pollModeBtn.addEventListener('click', () => switchActiveDashboardView('poll'));
+  if (quizModeBtn) quizModeBtn.addEventListener('click', () => switchActiveDashboardView('quiz'));
+
+  // Keep these original active tracking engines intact!
   if (startPollBtn) startPollBtn.addEventListener('click', launchPoll);
   if (endPollBtn) endPollBtn.addEventListener('click', closeAndSavePoll);
 

@@ -22,8 +22,8 @@
       
       <header class="top-bar">
         <div class="modes">
-  <button class="active">Whiteboard</button>
-  <button>Quiz</button>
+  <button class="active" id="whiteboardModeBtn">Whiteboard</button>
+  <button id="quizModeBtn">Quiz</button>
   <button id="pollModeBtn">Poll</button> 
 </div>
         <div class="room-info">
@@ -69,6 +69,49 @@
     <div id="resultsBars" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
       </div>
     <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
+  </div>
+</section>
+<section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
+  <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #f1c40f;">🏆 Quiz Master Control Console</h3>
+  
+  <div style="margin-bottom: 15px;">
+    <label for="quizModeSelect" style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px; color: #bdc3c7;">SELECT QUIZ TYPE:</label>
+    <select id="quizModeSelect" style="width: 100%; padding: 8px; background: #34495e; color: white; border: 1px solid #455a64; font-weight: bold; border-radius: 4px; outline: none; cursor: pointer;">
+      <option value="gameshow" selected>🏆 Idea 1: Live Game Show Mode (Teacher Paced)</option>
+      <option value="independent">📊 Idea 2: Independent Mission Grid (Student Paced)</option>
+      <option value="canvas">🎨 Idea 3: Canvas Workspace Challenge (Drawing Required)</option>
+    </select>
+  </div>
+
+  <div id="quizSetupBlock">
+    <label for="quizQuestion" style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px; color: #bdc3c7;">QUIZ QUESTION:</label>
+    <input type="text" id="quizQuestion" placeholder="Type game show question here..." style="width: 100%; margin-bottom: 15px; padding: 8px; box-sizing: border-box; background: #ffffff; color: #333333; border: none; border-radius: 4px; font-size: 14px;">
+
+    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 8px; color: #bdc3c7;">OPTIONS & ANSWER KEY:</label>
+    
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+      <input type="radio" name="quizCorrectRadio" value="0" checked style="cursor: pointer; width: 18px; height: 18px;">
+      <input type="text" class="quiz-opt" placeholder="Answer Choice A" style="flex-grow: 1; padding: 8px; border-radius: 4px; border: none;">
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+      <input type="radio" name="quizCorrectRadio" value="1" style="cursor: pointer; width: 18px; height: 18px;">
+      <input type="text" class="quiz-opt" placeholder="Answer Choice B" style="flex-grow: 1; padding: 8px; border-radius: 4px; border: none;">
+    </div>
+
+    <button id="launchQuizBtn" style="width: 100%; padding: 10px; background: #f1c40f; color: #2c3e50; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 14px; text-transform: uppercase;">
+      Broadcast First Question
+    </button>
+  </div>
+
+  <div id="quizLiveEngine" style="display: none; margin-top: 15px; border-top: 1px solid #455a64; padding-top: 15px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <span id="quizEngineStatus" style="font-weight: bold; color: #2ecc71; font-size: 14px;">⚡ Question 1 Active...</span>
+      <button id="endQuizBtn" style="background: #e74c3c; color: white; border: none; padding: 6px 14px; font-weight: bold; font-size: 12px; border-radius: 4px; cursor: pointer;">Close Quiz</button>
+    </div>
+    
+    <div id="quizDataDisplayContainer" style="background: #1a252f; border-radius: 4px; padding: 15px; min-height: 120px; box-sizing: border-box;">
+      <em style="color: #95a5a6; font-size: 13px; display: block; text-align: center; padding-top: 35px;">Waiting for pupil answers...</em>
+    </div>
   </div>
 </section>
 
