@@ -203,24 +203,37 @@ function setupEventListeners() {
     });
   }
 
-  // Timer Click Action Wire
+// Timer Click Action Wire
   if (timerDisplay) {
     timerDisplay.style.cursor = "pointer";
     timerDisplay.addEventListener('click', () => {
       if (countdownInterval) {
         clearInterval(countdownInterval);
         countdownInterval = null;
+        timerDisplay.style.color = ""; // Reset to default style when paused
       } else {
+        // Set initial color to green when started
+        timerDisplay.style.color = "#2ecc71"; 
+        
         countdownInterval = setInterval(() => {
           if (totalSeconds > 0) {
             totalSeconds--;
             const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
             const secs = (totalSeconds % 60).toString().padStart(2, '0');
             timerDisplay.textContent = `Timer: ${mins}:${secs}`;
+            
+            // Turn red if less than 1 minute (60 seconds) remains
+            if (totalSeconds < 60) {
+              timerDisplay.style.color = "#e74c3c"; 
+            } else {
+              timerDisplay.style.color = "#2ecc71";
+            }
+            
             if (channel) channel.send({ type: 'broadcast', event: 'timer-tick', payload: { seconds: totalSeconds } });
           } else {
             clearInterval(countdownInterval);
             countdownInterval = null;
+            timerDisplay.style.color = ""; // Reset color
             alert("Time is up!");
           }
         }, 1000);
