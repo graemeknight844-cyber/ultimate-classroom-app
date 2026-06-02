@@ -37,6 +37,8 @@ let savedPollsHistory = []; // Keeps track of completed polls for the PDF export
 
 // Global DOM references
 let canvas, ctx, colorPicker, clearBtn, undoBtn;
+// ... (your existing elements)
+let studentInspectBanner, leavePupilBoardBtn; // <-- ADD THESE HERE
 let penToolBtn, textToolBtn, imgToolBtn, rubberToolBtn;
 let sizeThicknessSlider, textSizeSlider;
 let prevPageBtn, nextPageBtn, pageText;
@@ -84,6 +86,15 @@ document.addEventListener('DOMContentLoaded', () => {
   livePollQuestion = document.getElementById('livePollQuestion');
   resultsBarsContainer = document.getElementById('resultsBars');
 
+  // === NEW STUDENT INSPECTION DOM ELEMENT BINDINGS ===
+  studentInspectBanner = document.getElementById('studentInspectBanner');
+  leavePupilBoardBtn = document.getElementById('leavePupilBoardBtn');
+
+  if (leavePupilBoardBtn) {
+    leavePupilBoardBtn.addEventListener('click', revertToTeacherPresentationView);
+  }
+  // ===================================================
+
   if (ctx) {
     ctx.lineWidth = sizeThicknessSlider.value;
     ctx.lineCap = 'round';
@@ -95,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   updatePaginationUI();
   setupEventListeners();
-
   // Connect Realtime Broadcast Listener Dynamic Switcher Engine
   window.startTeacherConnection = function(roomCode) {
     if (!supabaseClient) return;
@@ -666,7 +676,7 @@ function handleUndoAction() {
 }
 
 // ============================================================================
-// LIVE STUDENT BOARD DISTRIBUTION SYSTEM
+// LIVE STUDENT BOARD DISTRIBUTION SYSTEM - WITH INSPECTION TOGGLE HOOKS
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
   if (!studentSubmissionsHistory[currentBoardIndex]) {
@@ -712,18 +722,58 @@ function renderStudentThumbnailDOM(studentData) {
 
     targetTarget.addEventListener('click', () => {
       if (!ctx || !canvas) return;
+      
       const zoomImg = new Image();
       zoomImg.onload = () => {
+        // 1. Bake elements down safely
         bakeFloatingObjects();
+        
+        // 2. CRITICAL CHANGE: Save the actual teacher content snapshot *before* projecting pupil work
+        // This ensures the current state isn't lost if edits were made since page changes
         saveCurrentBoardState();
+        
+        // 3. Clear canvas plane and draw student work
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
-        pushToHistory();
+        
+        // 4. Reveal the Notification Top Banner to the user 
+        if (studentInspectBanner) {
+          const bannerText = document.getElementById('inspectBannerText');
+          if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${studentData.name}`;
+          studentInspectBanner.style.display = "flex";
+        }
       };
       zoomImg.src = liveImg.src;
     });
   }
   
+  if (liveImg) { liveImg.src = studentData.boardImage; }
+}
+
+// Dedicated function to bring back the teacher's workspace seamlessly
+function revertToTeacherPresentationView() {
+  if (!ctx || !canvas) return;
+
+  // Clear student work from drawing plane
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Reload teacher's slide content directly from memory maps array
+  if (boardsData[currentBoardIndex]) {
+    const originalTeacherImg = new Image();
+    originalTeacherImg.src = boardsData[currentBoardIndex];
+    originalTeacherImg.onload = () => {
+      ctx.drawImage(originalTeacherImg, 0, 0);
+      // Reset local undo trace history arrays specifically back to standard footprint state
+      canvasHistory = [canvas.toDataURL()];
+    };
+  }
+
+  // Hide the notification banner
+  if (studentInspectBanner) {
+    studentInspectBanner.style.display = "none";
+  }
+}
   if (liveImg) { liveImg.src = studentData.boardImage; }
 }
 
