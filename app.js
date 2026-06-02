@@ -861,10 +861,11 @@ if (exportBtn) {
         pdf.setTextColor(40, 40, 60);
         pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(18);
-        pdf.text(`Question Asked: ${poll.question}`, 45, 90);
+        pdf.text(`Question Asked: ${poll.question}`, 45, 85);
 
         // Calculate analytical tally properties
-        const totalVotes = Object.keys(poll.votes).length;
+        const voterNames = Object.keys(poll.votes);
+        const totalVotes = voterNames.length;
         const tally = {};
         poll.options.forEach((_, idx) => tally[idx] = 0);
         Object.values(poll.votes).forEach(voteIdx => { if(tally[voteIdx] !== undefined) tally[voteIdx]++; });
@@ -872,10 +873,10 @@ if (exportBtn) {
         pdf.setFont("Helvetica", "normal");
         pdf.setFontSize(12);
         pdf.setTextColor(100, 100, 120);
-        pdf.text(`Total Registered Responses Collected: ${totalVotes}`, 45, 112);
+        pdf.text(`Total Registered Responses Collected: ${totalVotes}`, 45, 105);
 
         // Draw visual analytical bars inside PDF engine layout 
-        let currentYOffset = 150;
+        let currentYOffset = 135;
         poll.options.forEach((optionText, idx) => {
           const count = tally[idx];
           const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
@@ -902,8 +903,95 @@ if (exportBtn) {
           pdf.setFontSize(12);
           pdf.text(`${count} vote(s) (${percent}%)`, 815, currentYOffset + 14);
 
-          currentYOffset += 40; // Step row downwards safely
+          currentYOffset += 32; // Step row downwards safely
         });
+
+        // --------------------------------------------------------------------
+        // NEW ADVANCED ADDITION: DETAILED PUPIL BREAKDOWN TABLE
+        // --------------------------------------------------------------------
+        currentYOffset += 15; // Give breathing space under the charts
+        
+        // Draw Table Section Header
+        pdf.setTextColor(40, 40, 60);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(14);
+        pdf.text("Individual Pupil Response Grid", 45, currentYOffset);
+        currentYOffset += 12;
+
+        // Draw Table Header Row Background
+        pdf.setFillColor(74, 74, 104);
+        pdf.rect(45, currentYOffset, 1010, 24, 'F');
+
+        // Draw Table Headers
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(11);
+        pdf.text("Pupil Name", 60, currentYOffset + 16);
+        pdf.text("Selected Option / Response Given", 400, currentYOffset + 16);
+
+        currentYOffset += 24;
+
+        if (totalVotes === 0) {
+          // Fallback if no votes were dropped
+          pdf.setDrawColor(215, 215, 225);
+          pdf.rect(45, currentYOffset, 1010, 24, 'S');
+          pdf.setTextColor(130, 130, 140);
+          pdf.setFont("Helvetica", "italic");
+          pdf.setFontSize(11);
+          pdf.text("No active student submissions recorded for this poll segment.", 60, currentYOffset + 16);
+        } else {
+          // Populate student matrix lines dynamically
+          voterNames.forEach((studentName, sIdx) => {
+            // Check if table row is spilling past canvas bounds; overflow down to a clean page if needed
+            if (currentYOffset > 480) {
+              pdf.addPage([1100, 520], 'landscape');
+              
+              // Sticky Sub-Header on new overflow page
+              pdf.setFillColor(90, 90, 115);
+              pdf.rect(0, 0, 1100, 35, 'F');
+              pdf.setTextColor(255, 255, 255);
+              pdf.setFont("Helvetica", "bold");
+              pdf.setFontSize(13);
+              pdf.text(`PUPIL BREAKDOWN MATRIX - POLL #${index + 1} (CONTINUED)`, 30, 22);
+              
+              // Re-draw Table Header on new page
+              currentYOffset = 60;
+              pdf.setFillColor(74, 74, 104);
+              pdf.rect(45, currentYOffset, 1010, 24, 'F');
+              pdf.setTextColor(255, 255, 255);
+              pdf.setFont("Helvetica", "bold");
+              pdf.setFontSize(11);
+              pdf.text("Pupil Name", 60, currentYOffset + 16);
+              pdf.text("Selected Option / Response Given", 400, currentYOffset + 16);
+              currentYOffset += 24;
+            }
+
+            // Alternating rows zebra striping styling for clear legibility
+            if (sIdx % 2 === 0) {
+              pdf.setFillColor(245, 245, 250);
+              pdf.rect(45, currentYOffset, 1010, 22, 'F');
+            }
+            
+            // Draw row borders
+            pdf.setDrawColor(225, 225, 235);
+            pdf.rect(45, currentYOffset, 1010, 22, 'S');
+
+            // Write Student Profile Data Elements
+            pdf.setTextColor(50, 50, 60);
+            pdf.setFont("Helvetica", "bold");
+            pdf.setFontSize(11);
+            pdf.text(studentName, 60, currentYOffset + 15);
+
+            // Fetch string match translation of index response safely
+            const chosenIndex = poll.votes[studentName];
+            const chosenOptionStringText = poll.options[chosenIndex] || `Unknown Choice (Index ${chosenIndex})`;
+
+            pdf.setFont("Helvetica", "normal");
+            pdf.text(chosenOptionStringText, 400, currentYOffset + 15);
+
+            currentYOffset += 22; // Slide marker line spacing step down
+          });
+        }
       });
     }
     
