@@ -13,8 +13,8 @@ async function checkUserSession() {
 }
 checkUserSession();
 
-// CHANGE THIS LINE RIGHT HERE:
-let channel = null;
+// Fallback configuration channel initialized globally so buttons don't throw null errors
+let channel = supabaseClient ? supabaseClient.channel('room_8492') : null;
 
 // ============================================================================
 // APPLICATION GLOBAL STATE VARIABLES
@@ -96,12 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
   updatePaginationUI();
   setupEventListeners();
 
- // Connect Realtime Broadcast Listener
-  // Replace your old 'if (channel)' block with this function:
+  // Connect Realtime Broadcast Listener Dynamic Switcher Engine
   window.startTeacherConnection = function(roomCode) {
     if (!supabaseClient) return;
 
-    // Dynamically connect to the room code
+    // Dynamically connect to the target room channel sequence
     channel = supabaseClient.channel(`room_${roomCode}`);
 
     // Attach listeners to the new dynamic channel
@@ -113,10 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   };
 
-  // Do you have a fixed room code or a variable? 
-  // For now, let's call it automatically with your code so it connects instantly:
+  // Connect instantly to the standard testing room configuration
   window.startTeacherConnection("8492");
+});
 
+
+// ============================================================================
+// WHITEBOARD UTILITY CORE
+// ============================================================================
 function pushToHistory() {
   if (!canvas) return;
   canvasHistory.push(canvas.toDataURL());
@@ -153,7 +156,7 @@ function setActiveTool(tool, activeBtn) {
 // ============================================================================
 function togglePollPanel() {
   if (!pollPanel) return;
-  if (pollPanel.style.display === 'none') {
+  if (pollPanel.style.display === 'none' || !pollPanel.style.display) {
     pollPanel.style.display = 'block';
     pollModeBtn.classList.add('active');
   } else {
@@ -727,6 +730,7 @@ function updatePaginationUI() {
   if (pageText) pageText.textContent = `Board ${currentBoardIndex + 1} of ${Math.max(boardsData.length, 1)}`;
 }
 
+// Fixed function boundary layout map
 function saveCurrentBoardState() { 
   if (!canvas) return;
   boardsData[currentBoardIndex] = canvas.toDataURL(); 
