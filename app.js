@@ -783,6 +783,14 @@ function setupEventListeners() {
   if (startPollBtn) startPollBtn.addEventListener('click', launchPoll);
   if (endPollBtn) endPollBtn.addEventListener('click', closeAndSavePoll);
 
+// Add these event bindings inside your setup block to hook the buttons up!
+if (launchQuizBtn) {
+  launchQuizBtn.addEventListener('click', window.launchCurrentActiveQuiz);
+}
+if (endQuizBtn) {
+  endQuizBtn.addEventListener('click', window.endCurrentActiveQuiz);
+}
+
   if (colorPicker) {
     colorPicker.addEventListener('input', (e) => {
       if (currentTool === 'rubber') setActiveTool('pen', penToolBtn);
@@ -1279,6 +1287,88 @@ function loadBoardState(index) {
     });
   }
 }
+
+// ============================================================================
+// LIVE QUIZ BROADCAST TRANSMISSION LAYER
+// ============================================================================
+window.launchCurrentActiveQuiz = function() {
+  console.log("Attempting to broadcast quiz packet...");
+  
+  // 1. Safeguard check to ensure Supabase communication layer is live
+  if (!channel) {
+    alert("Supabase communication room channel is not connected! Refresh and try again.");
+    return;
+  }
+
+  // 2. Extract values from your staged question inputs
+  const questionInput = document.getElementById('quizQuestion');
+  const playstyleSelect = document.getElementById('quizModeSelect');
+  const referenceTextEl = document.getElementById('quizRefText');
+  
+  const questionText = questionInput ? questionInput.value.trim() : "";
+  const playstyleMode = playstyleSelect ? playstyleSelect.value : "gameshow";
+  const independentContextText = referenceTextEl ? referenceTextEl.value.trim() : "";
+
+  // 3. Collect active student multiple choice inputs
+  const optionInputs = document.querySelectorAll('.quiz-opt');
+  const validOptionsArray = [];
+  optionInputs.forEach(input => {
+    if (input.value.trim() !== "") {
+      validOptionsArray.push(input.value.trim());
+    }
+  });
+
+  // 4. Validate before blasting out to students
+  if (!questionText) {
+    alert("Please write or stage a question first before launching!");
+    return;
+  }
+  if (validOptionsArray.length < 2) {
+    alert("Please fill out at least 2 choice options for the students!");
+    return;
+  }
+
+  // 5. Construct a standardized lightweight transmission payload
+  const quizPayloadPacket = {
+    question: questionText,
+    options: validOptionsArray,
+    playstyle: playstyleMode,
+    referenceText: independentContextText
+  };
+
+  console.log("Broadcasting Quiz Package Payload:", quizPayloadPacket);
+
+  // 6. TRANSMIT THE BROADCAST VIA SUPABASE CHANNELS
+  channel.send({
+    type: 'broadcast',
+    event: 'start-live-quiz', // Matches piece #2 inside pupil.js
+    payload: quizPayloadPacket
+  });
+
+  // 7. Update local teacher view indicators so you know it was sent successfully
+  const statusIndicator = document.getElementById('quizEngineStatus');
+  if (statusIndicator) {
+    statusIndicator.textContent = "🚀 QUIZ ACTIVE: Broadcasting to Student Devices...";
+    statusIndicator.style.color = "#2ecc71";
+  }
+};
+
+window.endCurrentActiveQuiz = function() {
+  console.log("Terminating current active quiz block...");
+  if (channel) {
+    channel.send({
+      type: 'broadcast',
+      event: 'clear-live-quiz', // Matches clear hook inside pupil.js
+      payload: { status: "terminated" }
+    });
+  }
+  
+  const statusIndicator = document.getElementById('quizEngineStatus');
+  if (statusIndicator) {
+    statusIndicator.textContent = "Inactive (Waiting for staging input...)";
+    statusIndicator.style.color = "#7f8c8d";
+  }
+};
 
 // ============================================================================
 // ADVANCED REPORT BOOKLET EXPORT MODULE
