@@ -428,15 +428,29 @@ let automatedQuizState = {
   totalActiveStudents: 0
 };
 
-// 1. DYNAMIC MONITORING: Counts how many students are connected right now
+// 1. DYNAMIC MONITORING: Automated checking of common room object names
 function getLiveConnectedStudentCount() {
-  if (typeof activeStudentRoster !== 'undefined') {
-    return Object.keys(activeStudentRoster).length;
+  // Check if your whiteboard grid uses 'activeStudents'
+  if (typeof activeStudents !== 'undefined' && activeStudents !== null) {
+    const count = Object.keys(activeStudents).length;
+    if (count > 0) return count;
   }
-  // Fallback placeholder value of 1 if you are testing solo in a single tab
-  return 1; 
-}
+  
+  // Check if your whiteboard grid uses 'studentBoards'
+  if (typeof studentBoards !== 'undefined' && studentBoards !== null) {
+    const count = Object.keys(studentBoards).length;
+    if (count > 0) return count;
+  }
 
+  // Check if your whiteboard grid uses 'studentList'
+  if (typeof studentList !== 'undefined' && studentList !== null) {
+    const count = Object.keys(studentList).length;
+    if (count > 0) return count;
+  }
+  
+  // Change this fallback number to match your exact current iPad setup count!
+  return 3; 
+}
 // 2. REAL-TIME CONNECTION CONNECTION & INBOUND MULTI-STREAM INTERCEPTOR
 window.startTeacherConnection = function(roomCode) {
   if (!supabaseClient) return;
@@ -481,7 +495,11 @@ window.startTeacherConnection = function(roomCode) {
     });
 };
 
-// 3. LAUNCH CORE: Triggered when you click the "Launch Quiz" button
+// ============================================================================
+// AUTOMATED SYNCHRONIZED QUIZ ENGINE CORE (app.js) - FIXED LOOP ADVANCE
+// ============================================================================
+
+// 3. LAUNCH CORE: Triggered ONLY ONCE when you click "Launch Quiz"
 window.launchCurrentActiveQuiz = function() {
   console.log("Initializing automated synchronized quiz sequence...");
   
@@ -490,7 +508,7 @@ window.launchCurrentActiveQuiz = function() {
     return;
   }
 
-  // A. Build the active question deck directly from your teacher scratchpad fields!
+  // A. Grab the primary question currently sitting in your scratchpad fields
   const qInput = document.getElementById('quizQuestion');
   const modeSelect = document.getElementById('quizModeSelect');
   const refTextEl = document.getElementById('quizRefText');
@@ -512,7 +530,7 @@ window.launchCurrentActiveQuiz = function() {
     return;
   }
 
-  // B. Load this question as the active deck array
+  // B. Initialize the array with your typed custom scratchpad question
   automatedQuizState.questionsDeck = [
     {
       question: questionText,
@@ -522,24 +540,26 @@ window.launchCurrentActiveQuiz = function() {
     }
   ];
 
-  // If you also want to append the other 3 mock database items automatically into the loop sequence:
-  if (typeof currentStagedQuizDeck !== 'undefined' && currentStagedQuizDeck.length > 0) {
-    // Merges your input question with any saved backend questions deck list
-    automatedQuizState.questionsDeck = automatedQuizState.questionsDeck.concat(currentStagedQuizDeck);
+  // C. AUTOMATION LINK: Automatically append the other 3 mock questions to the loop!
+  // This constructs your 4-question deck sequence dynamically at the very start.
+  automatedQuizState.questionsDeck = automatedQuizState.questionsDeck.concat([
+    { question: "Which planet is known as the Red Planet?", options: ["Earth", "Mars", "Jupiter", "Venus"], playstyle: "gameshow" },
+    { question: "What is the capital of France?", options: ["London", "Berlin", "Paris", "Madrid"], playstyle: "gameshow" },
+    { question: "What is 10 x 10?", options: ["50", "100", "200", "1000"], playstyle: "gameshow" }
+  ]);
+
+  // Set up baseline tracking state parameters
+  automatedQuizState.isActive = true;
+  automatedQuizState.currentQuestionIndex = 0; // Starts at 0 (your scratchpad question)
+  
+  if (typeof activeLiveQuizMetrics !== 'undefined') {
+    // Reset responses layout dictionary
+    for (let prop in activeLiveQuizMetrics) { delete activeLiveQuizMetrics[prop]; }
   } else {
-    // Structural Fallback Array for validation testing so you have 4 total items
-    automatedQuizState.questionsDeck = automatedQuizState.questionsDeck.concat([
-      { question: "Which planet is known as the Red Planet?", options: ["Earth", "Mars", "Jupiter", "Venus"], playstyle: "gameshow" },
-      { question: "What is the capital of France?", options: ["London", "Berlin", "Paris", "Madrid"], playstyle: "gameshow" },
-      { question: "What is 10 x 10?", options: ["50", "100", "200", "1000"], playstyle: "gameshow" }
-    ]);
+    window.activeLiveQuizMetrics = {};
   }
 
-  automatedQuizState.isActive = true;
-  automatedQuizState.currentQuestionIndex = 0;
-  
-  if (typeof activeLiveQuizMetrics !== 'undefined') activeLiveQuizMetrics = {};
-
+  // Fire off the first automated question countdown card
   runAutomatedQuestionSequence();
 };
 
@@ -550,9 +570,10 @@ function runAutomatedQuestionSequence() {
   const currentIndex = automatedQuizState.currentQuestionIndex;
   const totalQuestions = automatedQuizState.questionsDeck.length;
 
-  // End conditions check
+  // End conditions check: Stop if we ran out of deck items
   if (currentIndex >= totalQuestions) {
-    console.log("All questions completed!");
+    console.log("All questions completed successfully!");
+    updateTeacherStatusText("✓ Quiz Finished! All questions automatically completed.");
     window.endCurrentActiveQuiz();
     return;
   }
@@ -560,21 +581,23 @@ function runAutomatedQuestionSequence() {
   const currentQuestionData = automatedQuizState.questionsDeck[currentIndex];
   automatedQuizState.totalActiveStudents = getLiveConnectedStudentCount();
 
-  // STEP A: Broadcast a synchronized 3-second countdown card sequence to ALL pupils
+  // STEP A: Broadcast a synchronized 3-second countdown card sequence to ALL iPads
   channel.send({
     type: 'broadcast',
     event: 'quiz-countdown',
     payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
   });
 
-  updateTeacherStatusText(`Get Ready! Question ${currentIndex + 1} countdown firing...`);
+  updateTeacherStatusText(`Get Ready! Question ${currentIndex + 1}/${totalQuestions} countdown firing...`);
 
   // STEP B: Wait 3.2 seconds for the student timer animation to finish, then pop open options
   setTimeout(() => {
     if (!automatedQuizState.isActive) return;
 
-    // Flush answer metrics collection logs cleanly for this new question round
-    if (typeof activeLiveQuizMetrics !== 'undefined') activeLiveQuizMetrics = {};
+    // Clear previous answer tracking dictionary keys so the new question round resets fresh
+    if (typeof activeLiveQuizMetrics !== 'undefined') {
+      for (let prop in activeLiveQuizMetrics) { delete activeLiveQuizMetrics[prop]; }
+    }
 
     channel.send({
       type: 'broadcast',
@@ -587,7 +610,7 @@ function runAutomatedQuestionSequence() {
       }
     });
 
-    updateTeacherStatusText(`🚀 Question ${currentIndex + 1} LIVE. Awaiting student answers...`);
+    updateTeacherStatusText(`🚀 Question ${currentIndex + 1}/${totalQuestions} LIVE. Awaiting student answers...`);
     if (typeof updateTeacherQuizDashboardUI === "function") updateTeacherQuizDashboardUI();
   }, 3200); 
 }
@@ -599,23 +622,18 @@ function evaluateAutomationProgress() {
   const currentResponsesCount = typeof activeLiveQuizMetrics !== 'undefined' ? Object.keys(activeLiveQuizMetrics).length : 0;
   const targetCount = automatedQuizState.totalActiveStudents;
 
-  console.log(`Automation Audit: ${currentResponsesCount}/${targetCount} answers locked in.`);
+  console.log(`Automation Progress Audit: ${currentResponsesCount} out of ${targetCount} iPads answered.`);
 
-  // Once every single logged-in pupil in the classroom selects an option, advance!
+  // Once every single connected iPad answers, auto-advance!
   if (currentResponsesCount >= targetCount && targetCount > 0) {
-    updateTeacherStatusText("✓ Everyone has answered! Preparing next question cards sequence...");
+    updateTeacherStatusText(`✓ Question ${automatedQuizState.currentQuestionIndex + 1} complete! Advancing shortly...`);
 
     setTimeout(() => {
+      // Step up index counter and hit loop sequencer organically
       automatedQuizState.currentQuestionIndex++;
       runAutomatedQuestionSequence();
-    }, 2000); // 2-second buffer so students see selection state confirmations layout
+    }, 2500); // 2.5 second delay so pupils can process their answer feedback layout
   }
-}
-
-// Helper utility to write out clear system status changes
-function updateTeacherStatusText(msg) {
-  const statusIndicator = document.getElementById('quizEngineStatus');
-  if (statusIndicator) statusIndicator.textContent = msg;
 }
 
 // 6. TERMINATE/RESET FUNCTIONS
