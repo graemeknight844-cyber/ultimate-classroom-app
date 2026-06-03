@@ -136,6 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
   importQuizBtn = document.getElementById('importQuizBtn');
   quizQueueStatus = document.getElementById('quizQueueStatus');
 
+  if (importQuizBtn) {
+    importQuizBtn.addEventListener('click', handleBulkQuizImport);
+  }
+
   if (ctx) {
     ctx.lineWidth = sizeThicknessSlider.value;
     ctx.lineCap = 'round';
@@ -154,14 +158,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const comprehensionWrapper = document.getElementById('quizComprehensionWrapper');
     if (!comprehensionWrapper) return;
     
-    // If the playstyle rules are set to Independent/Self-Directed reading tasks,
-    // reveal the contextual text block area; otherwise, hide it away cleanly.
     if (selectedPlaystyleValue === "independent") {
       comprehensionWrapper.style.display = "block";
     } else {
       comprehensionWrapper.style.display = "none";
       const refTextArea = document.getElementById('quizRefText');
-      if (refTextArea) refTextArea.value = ""; // Flush memory cleanly
+      if (refTextArea) refTextArea.value = ""; 
     }
   };
 
@@ -177,10 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
   window.startTeacherConnection = function(roomCode) {
     if (!supabaseClient) return;
 
-    // Dynamically connect to the target room channel sequence
     channel = supabaseClient.channel(`room_${roomCode}`);
 
-    // Attach listeners to the new dynamic channel
     channel
       .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
       .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
@@ -191,10 +191,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Connect instantly to the standard testing room configuration
   window.startTeacherConnection("8492");
-}); // <-- This securely closes your original DOMContentLoaded listener block cleanly
+
+  // Critical: Setup listeners AFTER all elements are bounded inside DOM ready thread
+  setupEventListeners();
+}); 
 
 // ============================================================================
-// GLOBAL SCOPE HELPER CONSTRUCTORS (Sits safely outside DOMContentLoaded)
+// GLOBAL SCOPE DECK STORAGE CONSTRUCTORS (Safely outside initialization thread)
 // ============================================================================
 let persistentQuizDeckBank = [];
 
@@ -381,6 +384,10 @@ function loadQuestionFromQueueIntoInputs(index) {
     radioButtons[currentItem.correctAnswerIndex].checked = true;
   }
 }
+
+// Fallback listener stubs to prevent channel pipeline routing crashes
+function handleIncomingStudentAnswer(payload) { console.log("Incoming student answer:", payload); }
+function handleIncomingVote(payload) { console.log("Incoming poll vote:", payload); }
 
 // ============================================================================
 // WHITEBOARD UTILITY CORE
