@@ -22,10 +22,10 @@
       
       <header class="top-bar">
         <div class="modes">
-  <button class="active" id="whiteboardModeBtn">Whiteboard</button>
-  <button id="quizModeBtn">Quiz</button>
-  <button id="pollModeBtn">Poll</button> 
-</div>
+          <button class="active" id="whiteboardModeBtn">Whiteboard</button>
+          <button id="quizModeBtn">Quiz</button>
+          <button id="pollModeBtn">Poll</button> 
+        </div>
         <div class="room-info">
           <span class="join-code">Code: <strong>8492</strong></span>
           <span class="pupil-count">0/30 Joined</span>
@@ -33,112 +33,119 @@
       </header>
 
       <section id="pollPanel" style="display: none; background: #f4f4f9; border: 1px solid #ccc; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px;">
-  <h3 style="margin-top: 0; color: #4a4a68;">Quick Classroom Poll</h3>
-  
-  <div id="pollSetup">
-  <label for="pollQuestion" style="font-weight: bold; display: block; margin-bottom: 8px;">Poll Question:</label>
-  <input type="text" id="pollQuestion" placeholder="Enter your question here..." style="width: 100%; margin-bottom: 15px; padding: 6px;">
-
-  <label style="font-weight: bold; display: block; margin-bottom: 8px;">Options & Correct Answer Key:</label>
-  
-  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-    <input type="radio" name="correctOption" class="poll-correct-radio" value="0" checked>
-    <input type="text" class="poll-opt" placeholder="Option A" style="flex-grow: 1; padding: 6px;">
-  </div>
-
-  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-    <input type="radio" name="correctOption" class="poll-correct-radio" value="1">
-    <input type="text" class="poll-opt" placeholder="Option B" style="flex-grow: 1; padding: 6px;">
-  </div>
-
-  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-    <input type="radio" name="correctOption" class="poll-correct-radio" value="2">
-    <input type="text" class="poll-opt" placeholder="Option C" style="flex-grow: 1; padding: 6px;">
-  </div>
-
-  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-    <input type="radio" name="correctOption" class="poll-correct-radio" value="3">
-    <input type="text" class="poll-opt" placeholder="Option D" style="flex-grow: 1; padding: 6px;">
-  </div>
-
-  <button id="startPollBtn" style="width: 100%; padding: 10px; background: #2ecc71; color: white; border: none; font-weight: bold; cursor: pointer;">Launch Live Poll</button>
-</div>
-
-  <div id="pollLiveResults" style="display: none;">
-    <h4 id="livePollQuestion" style="margin: 5px 0 10px 0; color: #333;"></h4>
-    <div id="resultsBars" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
-      </div>
-    <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
-  </div>
-</section>
-
-<section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
-  <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #f1c40f;">🏆 Quiz Master Control Console</h3>
-  
-  <div style="margin-bottom: 15px;">
-    <label for="quizModeSelect" style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px; color: #bdc3c7;">SELECT QUIZ TYPE:</label>
-    <select id="quizModeSelect" style="width: 100%; padding: 8px; background: #34495e; color: white; border: 1px solid #455a64; font-weight: bold; border-radius: 4px; outline: none; cursor: pointer;">
-      <option value="gameshow" selected>🏆 Idea 1: Live Game Show Mode (Teacher Paced)</option>
-      <option value="independent">📊 Idea 2: Independent Mission Grid (Student Paced)</option>
-      <option value="canvas">🎨 Idea 3: Canvas Workspace Challenge (Drawing Required)</option>
-    </select>
-  </div>
-
-  <div style="background: #34495e; padding: 12px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #455a64;">
-    <details>
-      <summary style="font-weight: bold; color: #f1c40f; cursor: pointer; outline: none; user-select: none;">
-        📝 Pre-Plan / Bulk Import Quiz Questions
-      </summary>
-      <div style="margin-top: 10px;">
-        <p style="font-size: 11px; color: #bdc3c7; margin: 0 0 8px 0; line-height: 1.4;">
-          Paste your quiz below. Format: <code>Question | Opt A | Opt B | Opt C | Opt D | CorrectIndex</code><br>
-          <em>*Note: You can include 2, 3, or 4 options! The last number (0 to 3) points to the correct answer.</em>
-        </p>
-        <textarea id="quizBulkInput" rows="5" placeholder="Example:&#10;What is 5 + 5? | 8 | 10 | 12 | 15 | 1&#10;Is the sun hot? | True | False | 0" style="width: 100%; box-sizing: border-box; padding: 8px; font-family: monospace; font-size: 12px; border-radius: 4px; border: none; margin-bottom: 8px;"></textarea>
+        <h3 style="margin-top: 0; color: #4a4a68;">Quick Classroom Poll</h3>
         
-        <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center;">
-          <button id="importQuizBtn" style="background: #2ecc71; color: white; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 12px;">
-            📥 Load Into Lesson Queue
-          </button>
-          <span id="quizQueueStatus" style="font-size: 12px; font-weight: bold; color: #bdc3c7;">Queue: Empty</span>
+        <div id="pollSetup">
+          <label for="pollQuestion" style="font-weight: bold; display: block; margin-bottom: 8px;">Poll Question:</label>
+          <input type="text" id="pollQuestion" placeholder="Enter your question here..." style="width: 100%; margin-bottom: 15px; padding: 6px;">
+
+          <label style="font-weight: bold; display: block; margin-bottom: 8px;">Options & Correct Answer Key:</label>
+          
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <input type="radio" name="correctOption" class="poll-correct-radio" value="0" checked>
+            <input type="text" class="poll-opt" placeholder="Option A" style="flex-grow: 1; padding: 6px;">
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <input type="radio" name="correctOption" class="poll-correct-radio" value="1">
+            <input type="text" class="poll-opt" placeholder="Option B" style="flex-grow: 1; padding: 6px;">
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <input type="radio" name="correctOption" class="poll-correct-radio" value="2">
+            <input type="text" class="poll-opt" placeholder="Option C" style="flex-grow: 1; padding: 6px;">
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+            <input type="radio" name="correctOption" class="poll-correct-radio" value="3">
+            <input type="text" class="poll-opt" placeholder="Option D" style="flex-grow: 1; padding: 6px;">
+          </div>
+
+          <button id="startPollBtn" style="width: 100%; padding: 10px; background: #2ecc71; color: white; border: none; font-weight: bold; cursor: pointer;">Launch Live Poll</button>
         </div>
-      </div>
-    </details>
-  </div>
-  <div id="quizSetupBlock">
-    <label for="quizQuestion" style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px; color: #bdc3c7;">QUIZ QUESTION:</label>
-    <input type="text" id="quizQuestion" placeholder="Type game show question here..." style="width: 100%; margin-bottom: 15px; padding: 8px; box-sizing: border-box; background: #ffffff; color: #333333; border: none; border-radius: 4px; font-size: 14px;">
 
-    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 8px; color: #bdc3c7;">OPTIONS & ANSWER KEY:</label>
-    
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-      <input type="radio" name="quizCorrectRadio" value="0" checked style="cursor: pointer; width: 18px; height: 18px;">
-      <input type="text" class="quiz-opt" placeholder="Answer Choice A" style="flex-grow: 1; padding: 8px; border-radius: 4px; border: none;">
-    </div>
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-      <input type="radio" name="quizCorrectRadio" value="1" style="cursor: pointer; width: 18px; height: 18px;">
-      <input type="text" class="quiz-opt" placeholder="Answer Choice B" style="flex-grow: 1; padding: 8px; border-radius: 4px; border: none;">
-    </div>
+        <div id="pollLiveResults" style="display: none;">
+          <h4 id="livePollQuestion" style="margin: 5px 0 10px 0; color: #333;"></h4>
+          <div id="resultsBars" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;"></div>
+          <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
+        </div>
+      </section>
 
-    <button id="launchQuizBtn" style="width: 100%; padding: 10px; background: #f1c40f; color: #2c3e50; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 14px; text-transform: uppercase;">
-      Broadcast First Question
-    </button>
-  </div>
+      <section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
+        <h3 style="margin-top: 0; display: flex; align-items: center; justify-content: space-between; color: #f1c40f; border-bottom: 1px solid #34495e; padding-bottom: 10px;">
+          <span>🏆 Quiz Master Control Console</span>
+          <span id="quizBankCountBadge" style="font-size: 12px; background: #1abc9c; padding: 3px 10px; border-radius: 12px; color: white; font-weight: bold;">0 Questions Saved</span>
+        </h3>
+        
+        <div style="margin-bottom: 15px;">
+          <label for="quizModeSelect" style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px; color: #bdc3c7; letter-spacing: 0.5px;">QUIZ PLAYSTYLE RULE:</label>
+          <select id="quizModeSelect" onchange="toggleQuizContextFields(this.value)" style="width: 100%; padding: 8px; background: #34495e; color: white; border: 1px solid #455a64; font-weight: bold; border-radius: 4px; cursor: pointer; outline: none;">
+            <option value="gameshow" selected>⚡ Fast-Click Competition (Live Game Show / Speed Paced)</option>
+            <option value="independent">📖 Self-Directed Task (Displays Reading Passage / Numeracy Text Beside Choices)</option>
+          </select>
+        </div>
 
-  <div id="quizLiveEngine" style="display: none; margin-top: 15px; border-top: 1px solid #455a64; padding-top: 15px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <span id="quizEngineStatus" style="font-weight: bold; color: #2ecc71; font-size: 14px;">⚡ Question 1 Active...</span>
-      <button id="endQuizBtn" style="background: #e74c3c; color: white; border: none; padding: 6px 14px; font-weight: bold; font-size: 12px; border-radius: 4px; cursor: pointer;">Close Quiz</button>
-    </div>
-    
-    <div id="quizDataDisplayContainer" style="background: #1a252f; border-radius: 4px; padding: 15px; min-height: 120px; box-sizing: border-box;">
-      <em style="color: #95a5a6; font-size: 13px; display: block; text-align: center; padding-top: 35px;">Waiting for pupil answers...</em>
-    </div>
-  </div>
-</section>
+        <div id="quizSetupBlock" style="background: #34495e; padding: 15px; border-radius: 4px; border: 1px solid #455a64; margin-bottom: 15px;">
+          <label for="quizQuestion" style="font-weight: bold; display: block; margin-bottom: 8px; font-size: 13px; color: #f1c40f;">Quiz Question:</label>
+          <input type="text" id="quizQuestion" placeholder="Enter your quiz question here..." style="width: 100%; margin-bottom: 12px; padding: 8px; box-sizing: border-box; border-radius: 4px; border: none; font-size: 13px; color: #333;">
+
+          <div id="quizComprehensionWrapper" style="display: none; margin-bottom: 12px;">
+            <label for="quizRefText" style="font-weight: bold; display: block; margin-bottom: 6px; font-size: 12px; color: #e67e22;">Reference Reading Passage / Numeracy Text:</label>
+            <textarea id="quizRefText" rows="3" placeholder="Paste comprehension paragraph or problem text here for students to reference while answering..." style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 4px; border: none; font-family: sans-serif; font-size: 12px; resize: vertical; color: #333;"></textarea>
+          </div>
+
+          <label style="font-weight: bold; display: block; margin-bottom: 8px; font-size: 12px; color: #bdc3c7;">Options & Correct Answer Key:</label>
+          
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <input type="radio" name="quizCorrectRadio" value="0" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="text" class="quiz-opt" placeholder="Option A" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <input type="radio" name="quizCorrectRadio" value="1" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="text" class="quiz-opt" placeholder="Option B" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <input type="radio" name="quizCorrectRadio" value="2" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="text" class="quiz-opt" placeholder="Option C" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <input type="radio" name="quizCorrectRadio" value="3" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="text" class="quiz-opt" placeholder="Option D" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <button id="addQuestionToBankBtn" style="flex: 1; padding: 10px; background: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; text-transform: uppercase;">
+              ➕ Add to Quiz Deck
+            </button>
+            <button id="launchQuizBtn" style="flex: 1; padding: 10px; background: #2ecc71; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; text-transform: uppercase;">
+              🚀 Launch Spontaneous Card
+            </button>
+          </div>
+        </div>
+
+        <div style="background: #1a252f; border-radius: 4px; padding: 12px; margin-bottom: 15px; border: 1px solid #34495e;">
+          <h4 style="margin: 0 0 10px 0; font-size: 12px; color: #bdc3c7; text-transform: uppercase; letter-spacing: 0.5px;">📋 Persistent Session Deck Bank (Holds Questions All Lesson)</h4>
+          <div id="quizPersistentBankContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 4px;">
+            <em style="color: #7f8c8d; font-size: 12px; display: block; padding: 10px 0; text-align: center;">No questions stored yet. Build questions above to load your session bank.</em>
+          </div>
+        </div>
+
+        <div id="quizLiveEngine" style="display: none; margin-top: 15px; border-top: 1px solid #455a64; padding-top: 15px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span id="quizEngineStatus" style="font-weight: bold; color: #2ecc71; font-size: 13px; max-width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">⚡ Question Active...</span>
+            <button id="endQuizBtn" style="background: #e74c3c; color: white; border: none; padding: 5px 12px; font-weight: bold; font-size: 11px; border-radius: 4px; cursor: pointer;">Close Live Board</button>
+          </div>
+          
+          <div id="quizDataDisplayContainer" style="background: #16a085; border-radius: 4px; padding: 12px; min-height: 80px; box-sizing: border-box;">
+            <em style="color: #ffffff; font-size: 12px; display: block; text-align: center; padding-top: 20px;">Broadcasting successfully... Waiting for pupil answers.</em>
+          </div>
+        </div>
+      </section>
 
       <section class="teacher-stage">
-        
         <div style="display: flex; gap: 15px; background: #e1e1eb; padding: 8px 15px; border-radius: 6px 6px 0 0; border: 1px solid #ccc; border-bottom: none; align-items: center; max-width: 1140px;">
           <label style="color: #4a4a68; font-size: 13px; font-weight: bold;">Pen Thickness:</label>
           <input type="range" id="penThickness" min="2" max="30" value="4" style="width: 80px; cursor: pointer; vertical-align: middle;">
@@ -148,29 +155,25 @@
         </div>
 
         <div class="canvas-wrapper" style="border-top-left-radius: 0; border-top-right-radius: 0;">
-          
           <div class="tool-bar-vertical">
-  <button class="tool-btn active" id="penToolBtn">Pen</button>
-  <button class="tool-btn" id="rubberToolBtn">Rubber</button>
-  <button class="tool-btn" id="textToolBtn">Text</button>
-  <button class="tool-btn" id="imgToolBtn">Img</button>
-  
-  <button class="tool-btn" id="undoBtn">Undo</button>
-  
-  <hr class="tool-divider">
-  <input type="color" id="penColor" value="#333333">
-</div>
+            <button class="tool-btn active" id="penToolBtn">Pen</button>
+            <button class="tool-btn" id="rubberToolBtn">Rubber</button>
+            <button class="tool-btn" id="textToolBtn">Text</button>
+            <button class="tool-btn" id="imgToolBtn">Img</button>
+            <button class="tool-btn" id="undoBtn">Undo</button>
+            <hr class="tool-divider">
+            <input type="color" id="penColor" value="#333333">
+          </div>
           
           <div class="canvas-position-wrapper" style="position: relative; display: inline-block; max-width: 100%; flex-grow: 1;">
             <div id="studentInspectBanner" style="display: none; align-items: center; justify-content: space-between; background: #e67e22; color: white; padding: 10px 20px; font-family: 'Segoe UI', sans-serif; font-weight: bold; border-radius: 6px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-  <span id="inspectBannerText">👁️ Currently Displaying: John Doe's Workspace</span>
-  <button id="leavePupilBoardBtn" style="background: white; color: #e67e22; border: none; padding: 6px 14px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.2s;">
-    Return to Teacher Board
-  </button>
-</div>
+              <span id="inspectBannerText">👁️ Currently Displaying: John Doe's Workspace</span>
+              <button id="leavePupilBoardBtn" style="background: white; color: #e67e22; border: none; padding: 6px 14px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.2s;">
+                Return to Teacher Board
+              </button>
+            </div>
             <canvas id="teacherCanvas" width="1100" height="520" style="touch-action: none; background: #ffffff; border: 1px solid #ccc; max-width: 100%; height: auto; display: block;"></canvas>
           </div>
-
         </div>
         
         <div class="tools-row">
@@ -183,18 +186,17 @@
           </div>
 
           <div class="timer-container" style="display: flex; align-items: center; gap: 8px; background: #2c3e50; padding: 6px 12px; border-radius: 4px; color: white; font-family: 'Segoe UI', sans-serif;">
-  <span style="font-size: 13px; font-weight: bold; color: #bdc3c7;">TIMER:</span>
-  
-  <div style="display: flex; align-items: center; gap: 2px;">
-    <input type="number" id="timerMin" min="0" max="59" value="02" style="width: 35px; background: #34495e; color: white; border: none; text-align: center; font-size: 16px; font-weight: bold; border-radius: 3px; padding: 2px;">
-    <span style="font-weight: bold;">:</span>
-    <input type="number" id="timerSec" min="0" max="59" value="00" style="width: 35px; background: #34495e; color: white; border: none; text-align: center; font-size: 16px; font-weight: bold; border-radius: 3px; padding: 2px;">
-  </div>
-
-  <button id="timerToggleBtn" style="background: #2ecc71; color: white; border: none; padding: 3px 10px; font-weight: bold; font-size: 12px; border-radius: 3px; cursor: pointer; min-width: 55px;">
-    Start
-  </button>
-</div>
+            <span style="font-size: 13px; font-weight: bold; color: #bdc3c7;">TIMER:</span>
+            <div style="display: flex; align-items: center; gap: 2px;">
+              <input type="number" id="timerMin" min="0" max="59" value="02" style="width: 35px; background: #34495e; color: white; border: none; text-align: center; font-size: 16px; font-weight: bold; border-radius: 3px; padding: 2px;">
+              <span style="font-weight: bold;">:</span>
+              <input type="number" id="timerSec" min="0" max="59" value="00" style="width: 35px; background: #34495e; color: white; border: none; text-align: center; font-size: 16px; font-weight: bold; border-radius: 3px; padding: 2px;">
+            </div>
+            <button id="timerToggleBtn" style="background: #2ecc71; color: white; border: none; padding: 3px 10px; font-weight: bold; font-size: 12px; border-radius: 3px; cursor: pointer; min-width: 55px;">
+              Start
+            </button>
+          </div>
+        </div>
       </section>
 
       <section class="pupil-boards">

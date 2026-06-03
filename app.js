@@ -146,14 +146,41 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   updatePaginationUI();
-  setupEventListeners();
+
+  // ============================================================================
+  // GLOBAL CONTROLLER: DYNAMIC QUIZ PLAYSTYLE INTERFACE SWITCHER
+  // ============================================================================
+  window.toggleQuizContextFields = function(selectedPlaystyleValue) {
+    const comprehensionWrapper = document.getElementById('quizComprehensionWrapper');
+    if (!comprehensionWrapper) return;
+    
+    // If the playstyle rules are set to Independent/Self-Directed reading tasks,
+    // reveal the contextual text block area; otherwise, hide it away cleanly.
+    if (selectedPlaystyleValue === "independent") {
+      comprehensionWrapper.style.display = "block";
+    } else {
+      comprehensionWrapper.style.display = "none";
+      const refTextArea = document.getElementById('quizRefText');
+      if (refTextArea) refTextArea.value = ""; // Flush memory cleanly
+    }
+  };
+
+  // ============================================================================
+  // CORE DATA ENGINE: PERSISTENT SESSION DECK STORAGE MANAGEMENT
+  // ============================================================================
+  const addBtn = document.getElementById('addQuestionToBankBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', saveCurrentFormToPersistentDeckBank);
+  }
 
   // Connect Realtime Broadcast Listener Dynamic Switcher Engine
   window.startTeacherConnection = function(roomCode) {
     if (!supabaseClient) return;
 
+    // Dynamically connect to the target room channel sequence
     channel = supabaseClient.channel(`room_${roomCode}`);
 
+    // Attach listeners to the new dynamic channel
     channel
       .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
       .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
@@ -162,8 +189,117 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   };
 
+  // Connect instantly to the standard testing room configuration
   window.startTeacherConnection("8492");
-});
+}); // <-- This securely closes your original DOMContentLoaded listener block cleanly
+
+// ============================================================================
+// GLOBAL SCOPE HELPER CONSTRUCTORS (Sits safely outside DOMContentLoaded)
+// ============================================================================
+let persistentQuizDeckBank = [];
+
+function saveCurrentFormToPersistentDeckBank() {
+  const qInput = document.getElementById('quizQuestion');
+  const refTextEl = document.getElementById('quizRefText');
+  const optInputs = document.querySelectorAll('.quiz-opt');
+  const correctRadios = document.querySelectorAll('input[name="quizCorrectRadio"]');
+  
+  const questionText = qInput ? qInput.value.trim() : "";
+  if (!questionText) {
+    alert("Please write a question before adding it to your lesson session bank deck!");
+    return;
+  }
+  
+  const optionsArr = [];
+  optInputs.forEach(input => {
+    if (input.value.trim() !== "") optionsArr.push(input.value.trim());
+  });
+  
+  if (optionsArr.length < 2) {
+    alert("Please provide at least two valid answer choice choices!");
+    return;
+  }
+  
+  let correctIdx = 0;
+  correctRadios.forEach((radio, idx) => {
+    if (radio.checked) correctIdx = idx;
+  });
+  
+  const questionCard = {
+    id: "quiz-card-" + Date.now(),
+    question: questionText,
+    options: optionsArr,
+    correctAnswerIndex: correctIdx,
+    playstyle: document.getElementById('quizModeSelect').value,
+    referenceText: refTextEl ? refTextEl.value.trim() : ""
+  };
+  
+  persistentQuizDeckBank.push(questionCard);
+  renderPersistentDeckBankUI();
+  
+  if (qInput) qInput.value = "";
+  if (refTextEl) refTextEl.value = "";
+  optInputs.forEach(i => i.value = "");
+}
+
+function renderPersistentDeckBankUI() {
+  const container = document.getElementById('quizPersistentBankContainer');
+  const badge = document.getElementById('quizBankCountBadge');
+  if (!container) return;
+  
+  if (badge) badge.textContent = `${persistentQuizDeckBank.length} Questions Saved`;
+  
+  if (persistentQuizDeckBank.length === 0) {
+    container.innerHTML = `<em style="color: #7f8c8d; font-size: 12px; display: block; padding: 10px 0; text-align: center;">No questions stored yet. Build questions above to load your session bank.</em>`;
+    return;
+  }
+  
+  container.innerHTML = "";
+  persistentQuizDeckBank.forEach((card, idx) => {
+    const cardRow = document.createElement('div');
+    cardRow.style.cssText = "display: flex; align-items: center; justify-content: space-between; background: #34495e; padding: 8px 12px; border-radius: 4px; border-left: 4px solid #3498db; margin-bottom: 6px;";
+    
+    const textDetails = document.createElement('div');
+    textDetails.style.cssText = "max-width: 70%;";
+    
+    const title = document.createElement('div');
+    title.style.cssText = "font-weight: bold; font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
+    title.textContent = `${idx + 1}. ${card.question}`;
+    
+    const subtitle = document.createElement('div');
+    subtitle.style.cssText = "font-size: 11px; color: #bdc3c7; margin-top: 2px;";
+    subtitle.textContent = `Mode: ${card.playstyle === 'gameshow' ? '⚡ Speed Competitor' : '📖 Self-Directed'} | Choices: ${card.options.length}`;
+    
+    textDetails.appendChild(title);
+    textDetails.appendChild(subtitle);
+    
+    const stageBtn = document.createElement('button');
+    stageBtn.textContent = "⚡ STAGE CARD";
+    stageBtn.style.cssText = "background: #1abc9c; color: white; border: none; padding: 5px 10px; font-size: 11px; font-weight: bold; border-radius: 3px; cursor: pointer;";
+    
+    stageBtn.addEventListener('click', () => {
+      if (document.getElementById('quizQuestion')) document.getElementById('quizQuestion').value = card.question;
+      document.getElementById('quizModeSelect').value = card.playstyle;
+      window.toggleQuizContextFields(card.playstyle);
+      
+      if (card.referenceText && document.getElementById('quizRefText')) {
+        document.getElementById('quizRefText').value = card.referenceText;
+      }
+      
+      const formOpts = document.querySelectorAll('.quiz-opt');
+      formOpts.forEach((input, oIdx) => {
+        input.value = card.options[oIdx] ? card.options[oIdx] : "";
+      });
+      
+      const formRadios = document.querySelectorAll('input[name="quizCorrectRadio"]');
+      if (formRadios[card.correctAnswerIndex]) formRadios[card.correctAnswerIndex].checked = true;
+    });
+    
+    cardRow.appendChild(textDetails);
+    cardRow.appendChild(stageBtn);
+    container.appendChild(cardRow);
+  });
+}
 
 // ============================================================================
 // BULK TEXT-BOX QUIZ QUEUE PARSER ENGINE
