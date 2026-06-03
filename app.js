@@ -175,19 +175,48 @@ document.addEventListener('DOMContentLoaded', () => {
     addBtn.addEventListener('click', saveCurrentFormToPersistentDeckBank);
   }
 
-  // Connect Realtime Broadcast Listener Dynamic Switcher Engine
-  window.startTeacherConnection = function(roomCode) {
-    if (!supabaseClient) return;
+ // ============================================================================
+// REAL-TIME CONNECTION CONNECTION & INBOUND MULTI-STREAM INTERCEPTOR
+// ============================================================================
+window.startTeacherConnection = function(roomCode) {
+  if (!supabaseClient) return;
 
-    channel = supabaseClient.channel(`room_${roomCode}`);
+  channel = supabaseClient.channel(`room_${roomCode}`);
 
-    channel
-      .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
-      .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
-      .subscribe((status) => {
-        console.log(`Teacher channel status for room_${roomCode}:`, status);
-      });
-  };
+  channel
+    .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
+      // 1. CHOOSE ROUTE: IS THIS A MULTIPLE CHOICE QUIZ BUTTON SUBMISSION?
+      if (payload && payload.optionSelected !== undefined) {
+        console.log(`Quiz submission received from student [${payload.name}]:`, payload);
+        
+        // Save response parameters cleanly to active quiz metrics dictionary
+        if (typeof activeLiveQuizMetrics !== 'undefined') {
+          activeLiveQuizMetrics[payload.name] = {
+            choiceIndex: payload.optionSelected,
+            choiceText: payload.textValue,
+            timestamp: new Date().toLocaleTimeString()
+          };
+        }
+        
+        // Trigger your layout updates so it prints onto your dashboard grid instantly
+        if (typeof updateTeacherQuizDashboardUI === "function") {
+          updateTeacherQuizDashboardUI();
+        } else if (typeof renderLiveSubmissionsGrid === "function") {
+          renderLiveSubmissionsGrid();
+        }
+      } 
+      // 2. ALTERNATE ROUTE: FALL BACK TO WHITEBOARD CANVAS SNAPSHOT PROCESSING
+      else {
+        handleIncomingStudentAnswer(payload); 
+      }
+    })
+    .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { 
+      handleIncomingVote(payload); 
+    })
+    .subscribe((status) => {
+      console.log(`Teacher channel status for room_${roomCode}:`, status);
+    });
+};
 
   // Connect instantly to the standard testing room configuration
   window.startTeacherConnection("8492");
