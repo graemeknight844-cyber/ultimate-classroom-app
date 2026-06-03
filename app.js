@@ -640,6 +640,9 @@ function loadQuestionFromQueueIntoInputs(index) {
 function handleIncomingStudentAnswer(payload) { console.log("Incoming student answer:", payload); }
 function handleIncomingVote(payload) { console.log("Incoming poll vote:", payload); }
 
+// ============================================================================
+// SINGLE DEFINITION REAL-TIME CONNECTION PIPELINE
+// ============================================================================
 window.startTeacherConnection = function(roomCode) {
   if (!supabaseClient) return;
 
@@ -647,7 +650,6 @@ window.startTeacherConnection = function(roomCode) {
 
   channel
     .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
-      // 1. CHOOSE ROUTE: IS THIS A MULTIPLE CHOICE QUIZ BUTTON SUBMISSION?
       if (payload && payload.optionSelected !== undefined) {
         console.log(`Quiz submission received from student [${payload.name || payload.studentName}]:`, payload);
         
@@ -672,7 +674,6 @@ window.startTeacherConnection = function(roomCode) {
           evaluateAutomationProgress();
         }
       } 
-      // 2. ALTERNATE ROUTE: FALL BACK TO WHITEBOARD CANVAS SNAPSHOT PROCESSING
       else {
         handleIncomingStudentAnswer(payload); 
       }
@@ -683,11 +684,215 @@ window.startTeacherConnection = function(roomCode) {
     .subscribe((status) => {
       console.log(`Teacher channel status for room_${roomCode}:`, status);
     });
-}; // <--- THIS CLOSES window.startTeacherConnection PERFECTLY
+};
 
 // ============================================================================
-// WHITEBOARD UTILITY CORE
+// FULL SCREEN QUIZ PRESENTATION GRAPH LOOP CONTROLLER
 // ============================================================================
+let automatedQuizState = {
+  isActive: false,
+  currentQuestionIndex: 0,
+  questionsDeck: [], 
+  totalActiveStudents: 3 
+};
+
+function getLiveConnectedStudentCount() {
+  return automatedQuizState.totalActiveStudents;
+}
+
+function drawTeacherPresentationCharts() {
+  const chartGrid = document.getElementById('presLiveBarGraphGrid');
+  if (!chartGrid || !automatedQuizState.isActive) return;
+
+  const currentQuestion = automatedQuizState.questionsDeck[automatedQuizState.currentQuestionIndex];
+  if (!currentQuestion) return;
+
+  const voteDistributionCounts = {};
+  currentQuestion.options.forEach((_, idx) => { voteDistributionCounts[idx] = 0; });
+
+  let totalResponsesCount = 0;
+  if (typeof window.activeLiveQuizMetrics !== 'undefined') {
+    Object.keys(window.activeLiveQuizMetrics).forEach(student => {
+      const choiceIdx = window.activeLiveQuizMetrics[student].choiceIndex;
+      if (voteDistributionCounts[choiceIdx] !== undefined) {
+        voteDistributionCounts[choiceIdx]++;
+        totalResponsesCount++;
+      }
+    });
+  }
+
+  const currentCountEl = document.getElementById('presCurrentAnswersCount');
+  const targetCountEl = document.getElementById('presTargetCount');
+  if (currentCountEl) currentCountEl.textContent = totalResponsesCount;
+  if (targetCountEl) targetCountEl.textContent = getLiveConnectedStudentCount();
+
+  chartGrid.innerHTML = '';
+  
+  currentQuestion.options.forEach((optionText, index) => {
+    const rawVotes = voteDistributionCounts[index] || 0;
+    const maxTarget = getLiveConnectedStudentCount() || 1;
+    const computedPercentageHeight = Math.min(100, (rawVotes / maxTarget) * 100);
+
+    const pillarContainer = document.createElement('div');
+    pillarContainer.style.cssText = "flex: 1; display: flex; flex-direction: column; align-items: center; max-width: 150px; height: 100%; justify-content: flex-end;";
+
+    const voteLabel = document.createElement('div');
+    voteLabel.style.cssText = "font-weight: bold; color: #2c3e50; margin-bottom: 8px; font-size: 16px;";
+    voteLabel.textContent = `${rawVotes} votes`;
+
+    const visualBarCol = document.createElement('div');
+    visualBarCol.style.cssText = `width: 100%; height: ${computedPercentageHeight}%; background: #2980b9; border-radius: 4px 4px 0 0; transition: height 0.4s ease; min-height: 4px; box-shadow: inset 0 -10px 0 rgba(0,0,0,0.05);`;
+
+    const optionLabel = document.createElement('div');
+    optionLabel.style.cssText = "font-size: 13px; font-weight: bold; color: #555; text-align: center; margin-top: 10px; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+    optionLabel.textContent = optionText;
+
+    pillarContainer.appendChild(voteLabel);
+    pillarContainer.appendChild(visualBarCol);
+    pillarContainer.appendChild(optionLabel);
+    chartGrid.appendChild(pillarContainer);
+  });
+}
+
+window.launchCurrentActiveQuiz = function() {
+  console.log("Launching Active Quiz Presentation Sequence...");
+  
+  if (!channel) {
+    alert("Network pipeline offline! Attempting to force start...");
+    window.startTeacherConnection("8492");
+  }
+
+  if (quizState.plannedQueue && quizState.plannedQueue.length > 0) {
+    automatedQuizState.questionsDeck = quizState.plannedQueue;
+  } else {
+    const qInput = document.getElementById('quizQuestion');
+    const optInputs = document.querySelectorAll('.quiz-opt');
+
+    const questionText = qInput ? qInput.value.trim() : "";
+    if (!questionText) {
+      alert("Staging layout empty! Please write a question first.");
+      return;
+    }
+
+    const optionsArr = [];
+    optInputs.forEach(input => { if (input.value.trim() !== "") optionsArr.push(input.value.trim()); });
+
+    automatedQuizState.questionsDeck = [{ question: questionText, options: optionsArr }];
+  }
+
+  automatedQuizState.isActive = true;
+  automatedQuizState.currentQuestionIndex = 0;
+  window.activeLiveQuizMetrics = {};
+
+  // UI SWITCH
+  const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
+  const presentationView = document.getElementById('teacherQuizPresentationView');
+  
+  if (whiteboardView) whiteboardView.style.display = 'none';
+  if (presentationView) presentationView.style.display = 'block';
+
+  runAutomatedQuestionSequence();
+};
+
+function runAutomatedQuestionSequence() {
+  if (!automatedQuizState.isActive) return;
+
+  const currentIndex = automatedQuizState.currentQuestionIndex;
+  const totalQuestions = automatedQuizState.questionsDeck.length;
+
+  if (currentIndex >= totalQuestions) {
+    window.endCurrentActiveQuiz();
+    return;
+  }
+
+  const currentQuestionData = automatedQuizState.questionsDeck[currentIndex];
+  window.activeLiveQuizMetrics = {}; 
+
+  const numLabel = document.getElementById('presQuestionNumber');
+  const txtLabel = document.getElementById('presQuestionText');
+  const statusMarquee = document.getElementById('presStatusTextMarquee');
+
+  if (numLabel) numLabel.textContent = `Question ${currentIndex + 1} / ${totalQuestions}`;
+  if (txtLabel) txtLabel.textContent = currentQuestionData.question;
+  if (statusMarquee) statusMarquee.textContent = "⏳ Synchronizing pupil iPads countdown cards...";
+
+  channel.send({
+    type: 'broadcast',
+    event: 'quiz-countdown',
+    payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
+  });
+
+  drawTeacherPresentationCharts();
+
+  setTimeout(() => {
+    if (!automatedQuizState.isActive) return;
+
+    channel.send({
+      type: 'broadcast',
+      event: 'start-live-quiz',
+      payload: {
+        question: currentQuestionData.question,
+        options: currentQuestionData.options,
+        playstyle: "gameshow"
+      }
+    });
+
+    if (statusMarquee) statusMarquee.textContent = "🚀 QUESTION ACTIVE — Awaiting student feedback responses...";
+  }, 3200);
+}
+
+function evaluateAutomationProgress() {
+  if (!automatedQuizState.isActive) return;
+
+  drawTeacherPresentationCharts();
+
+  const currentResponsesCount = Object.keys(window.activeLiveQuizMetrics).length;
+  const targetCount = getLiveConnectedStudentCount();
+  const statusMarquee = document.getElementById('presStatusTextMarquee');
+
+  if (currentResponsesCount >= targetCount && targetCount > 0) {
+    if (statusMarquee) {
+      statusMarquee.textContent = "✓ Everyone locked in! Loading next question...";
+      statusMarquee.style.color = "#2ecc71";
+    }
+
+    setTimeout(() => {
+      if (statusMarquee) statusMarquee.style.color = "#7f8c8d";
+      automatedQuizState.currentQuestionIndex++;
+      runAutomatedQuestionSequence();
+    }, 2500); 
+  }
+}
+
+window.endCurrentActiveQuiz = function() {
+  automatedQuizState.isActive = false;
+  
+  if (channel) {
+    channel.send({ type: 'broadcast', event: 'clear-live-quiz', payload: { status: "terminated" } });
+  }
+
+  const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
+  const presentationView = document.getElementById('teacherQuizPresentationView');
+  
+  if (whiteboardView) whiteboardView.style.display = 'block';
+  if (presentationView) presentationView.style.display = 'none';
+};
+
+// ============================================================================
+// WHITEBOARD UTILITY CORE & EVENT HANDLERS
+// ============================================================================
+function setupEventListeners() {
+  const launchBtn = document.getElementById('launchQuizBtn');
+  const endBtn = document.getElementById('endQuizBtn');
+
+  if (launchBtn) {
+    launchBtn.onclick = function() { window.launchCurrentActiveQuiz(); };
+  }
+  if (endBtn) {
+    endBtn.onclick = function() { window.endCurrentActiveQuiz(); };
+  }
+}
+
 function pushToHistory() {
   if (!canvas) return;
   canvasHistory.push(canvas.toDataURL());
