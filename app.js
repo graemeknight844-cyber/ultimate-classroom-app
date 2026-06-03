@@ -418,40 +418,6 @@ function loadQuestionFromQueueIntoInputs(index) {
 function handleIncomingStudentAnswer(payload) { console.log("Incoming student answer:", payload); }
 function handleIncomingVote(payload) { console.log("Incoming poll vote:", payload); }
 
-// ============================================================================
-// AUTOMATED SYNCHRONIZED QUIZ ENGINE CORE (app.js)
-// ============================================================================
-let automatedQuizState = {
-  isActive: false,
-  currentQuestionIndex: 0,
-  questionsDeck: [], 
-  totalActiveStudents: 0
-};
-
-// 1. DYNAMIC MONITORING: Automated checking of common room object names
-function getLiveConnectedStudentCount() {
-  // Check if your whiteboard grid uses 'activeStudents'
-  if (typeof activeStudents !== 'undefined' && activeStudents !== null) {
-    const count = Object.keys(activeStudents).length;
-    if (count > 0) return count;
-  }
-  
-  // Check if your whiteboard grid uses 'studentBoards'
-  if (typeof studentBoards !== 'undefined' && studentBoards !== null) {
-    const count = Object.keys(studentBoards).length;
-    if (count > 0) return count;
-  }
-
-  // Check if your whiteboard grid uses 'studentList'
-  if (typeof studentList !== 'undefined' && studentList !== null) {
-    const count = Object.keys(studentList).length;
-    if (count > 0) return count;
-  }
-  
-  // Change this fallback number to match your exact current iPad setup count!
-  return 3; 
-}
-// 2. REAL-TIME CONNECTION CONNECTION & INBOUND MULTI-STREAM INTERCEPTOR
 window.startTeacherConnection = function(roomCode) {
   if (!supabaseClient) return;
 
@@ -459,30 +425,32 @@ window.startTeacherConnection = function(roomCode) {
 
   channel
     .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
-      // ROUTE A: IS THIS A MULTIPLE CHOICE QUIZ BUTTON SUBMISSION?
+      // 1. CHOOSE ROUTE: IS THIS A MULTIPLE CHOICE QUIZ BUTTON SUBMISSION?
       if (payload && payload.optionSelected !== undefined) {
-        console.log(`Quiz submission received from student [${payload.name}]:`, payload);
+        console.log(`Quiz submission received from student [${payload.name || payload.studentName}]:`, payload);
         
-        // Save response cleanly to your active quiz metrics dictionary
-        if (typeof activeLiveQuizMetrics !== 'undefined') {
-          activeLiveQuizMetrics[payload.name] = {
-            choiceIndex: payload.optionSelected,
-            choiceText: payload.textValue,
-            timestamp: new Date().toLocaleTimeString()
-          };
+        const accurateName = payload.name || payload.studentName || "Anonymous-Student";
+        if (typeof window.activeLiveQuizMetrics === 'undefined') {
+          window.activeLiveQuizMetrics = {};
         }
         
-        // Trigger dashboard visual updates layout grid
+        window.activeLiveQuizMetrics[accurateName] = {
+          choiceIndex: payload.optionSelected,
+          choiceText: payload.textValue || "",
+          timestamp: new Date().toLocaleTimeString()
+        };
+        
         if (typeof updateTeacherQuizDashboardUI === "function") {
           updateTeacherQuizDashboardUI();
         } else if (typeof renderLiveSubmissionsGrid === "function") {
           renderLiveSubmissionsGrid();
         }
-
-        // EVALUATE AUTOMATION PROGRESS AFTER EVERY INBOUND CLICK
-        evaluateAutomationProgress();
+        
+        if (typeof evaluateAutomationProgress === "function") {
+          evaluateAutomationProgress();
+        }
       } 
-      // ROUTE B: FALL BACK TO WHITEBOARD CANVAS SNAPSHOT PROCESSING
+      // 2. ALTERNATE ROUTE: FALL BACK TO WHITEBOARD CANVAS SNAPSHOT PROCESSING
       else {
         handleIncomingStudentAnswer(payload); 
       }
@@ -493,163 +461,7 @@ window.startTeacherConnection = function(roomCode) {
     .subscribe((status) => {
       console.log(`Teacher channel status for room_${roomCode}:`, status);
     });
-};
-
-// ============================================================================
-// AUTOMATED SYNCHRONIZED QUIZ ENGINE CORE (app.js) - FIXED LOOP ADVANCE
-// ============================================================================
-
-// 3. LAUNCH CORE: Triggered ONLY ONCE when you click "Launch Quiz"
-window.launchCurrentActiveQuiz = function() {
-  console.log("Initializing automated synchronized quiz sequence...");
-  
-  if (!supabaseClient || !channel) {
-    alert("Real-time network channel not active. Check database connectivity.");
-    return;
-  }
-
-  // A. Grab the primary question currently sitting in your scratchpad fields
-  const qInput = document.getElementById('quizQuestion');
-  const modeSelect = document.getElementById('quizModeSelect');
-  const refTextEl = document.getElementById('quizRefText');
-  const optInputs = document.querySelectorAll('.quiz-opt');
-
-  const questionText = qInput ? qInput.value.trim() : "";
-  if (!questionText) {
-    alert("Staging scratchpad is empty! Write a question or click 'STAGE CARD' on a saved question first.");
-    return;
-  }
-
-  const optionsArr = [];
-  optInputs.forEach(input => {
-    if (input.value.trim() !== "") optionsArr.push(input.value.trim());
-  });
-
-  if (optionsArr.length < 2) {
-    alert("You need at least 2 options to start a live quiz transmission!");
-    return;
-  }
-
-  // B. Initialize the array with your typed custom scratchpad question
-  automatedQuizState.questionsDeck = [
-    {
-      question: questionText,
-      options: optionsArr,
-      playstyle: modeSelect ? modeSelect.value : "gameshow",
-      referenceText: (refTextEl && modeSelect.value === "independent") ? refTextEl.value.trim() : ""
-    }
-  ];
-
-  // C. AUTOMATION LINK: Automatically append the other 3 mock questions to the loop!
-  // This constructs your 4-question deck sequence dynamically at the very start.
-  automatedQuizState.questionsDeck = automatedQuizState.questionsDeck.concat([
-    { question: "Which planet is known as the Red Planet?", options: ["Earth", "Mars", "Jupiter", "Venus"], playstyle: "gameshow" },
-    { question: "What is the capital of France?", options: ["London", "Berlin", "Paris", "Madrid"], playstyle: "gameshow" },
-    { question: "What is 10 x 10?", options: ["50", "100", "200", "1000"], playstyle: "gameshow" }
-  ]);
-
-  // Set up baseline tracking state parameters
-  automatedQuizState.isActive = true;
-  automatedQuizState.currentQuestionIndex = 0; // Starts at 0 (your scratchpad question)
-  
-  if (typeof activeLiveQuizMetrics !== 'undefined') {
-    // Reset responses layout dictionary
-    for (let prop in activeLiveQuizMetrics) { delete activeLiveQuizMetrics[prop]; }
-  } else {
-    window.activeLiveQuizMetrics = {};
-  }
-
-  // Fire off the first automated question countdown card
-  runAutomatedQuestionSequence();
-};
-
-// 4. THE SEQUENCER LOOP: Handles the 3-2-1 countdown step and switches questions
-function runAutomatedQuestionSequence() {
-  if (!automatedQuizState.isActive) return;
-
-  const currentIndex = automatedQuizState.currentQuestionIndex;
-  const totalQuestions = automatedQuizState.questionsDeck.length;
-
-  // End conditions check: Stop if we ran out of deck items
-  if (currentIndex >= totalQuestions) {
-    console.log("All questions completed successfully!");
-    updateTeacherStatusText("✓ Quiz Finished! All questions automatically completed.");
-    window.endCurrentActiveQuiz();
-    return;
-  }
-
-  const currentQuestionData = automatedQuizState.questionsDeck[currentIndex];
-  automatedQuizState.totalActiveStudents = getLiveConnectedStudentCount();
-
-  // STEP A: Broadcast a synchronized 3-second countdown card sequence to ALL iPads
-  channel.send({
-    type: 'broadcast',
-    event: 'quiz-countdown',
-    payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
-  });
-
-  updateTeacherStatusText(`Get Ready! Question ${currentIndex + 1}/${totalQuestions} countdown firing...`);
-
-  // STEP B: Wait 3.2 seconds for the student timer animation to finish, then pop open options
-  setTimeout(() => {
-    if (!automatedQuizState.isActive) return;
-
-    // Clear previous answer tracking dictionary keys so the new question round resets fresh
-    if (typeof activeLiveQuizMetrics !== 'undefined') {
-      for (let prop in activeLiveQuizMetrics) { delete activeLiveQuizMetrics[prop]; }
-    }
-
-    channel.send({
-      type: 'broadcast',
-      event: 'start-live-quiz',
-      payload: {
-        question: currentQuestionData.question,
-        options: currentQuestionData.options,
-        playstyle: currentQuestionData.playstyle || "gameshow",
-        referenceText: currentQuestionData.referenceText || ""
-      }
-    });
-
-    updateTeacherStatusText(`🚀 Question ${currentIndex + 1}/${totalQuestions} LIVE. Awaiting student answers...`);
-    if (typeof updateTeacherQuizDashboardUI === "function") updateTeacherQuizDashboardUI();
-  }, 3200); 
-}
-
-// 5. AUTO-PROGRESS AUDIT CHECKER
-function evaluateAutomationProgress() {
-  if (!automatedQuizState.isActive) return;
-
-  const currentResponsesCount = typeof activeLiveQuizMetrics !== 'undefined' ? Object.keys(activeLiveQuizMetrics).length : 0;
-  const targetCount = automatedQuizState.totalActiveStudents;
-
-  console.log(`Automation Progress Audit: ${currentResponsesCount} out of ${targetCount} iPads answered.`);
-
-  // Once every single connected iPad answers, auto-advance!
-  if (currentResponsesCount >= targetCount && targetCount > 0) {
-    updateTeacherStatusText(`✓ Question ${automatedQuizState.currentQuestionIndex + 1} complete! Advancing shortly...`);
-
-    setTimeout(() => {
-      // Step up index counter and hit loop sequencer organically
-      automatedQuizState.currentQuestionIndex++;
-      runAutomatedQuestionSequence();
-    }, 2500); // 2.5 second delay so pupils can process their answer feedback layout
-  }
-}
-
-// 6. TERMINATE/RESET FUNCTIONS
-window.endCurrentActiveQuiz = function() {
-  automatedQuizState.isActive = false;
-  console.log("Automated quiz engine closed down cleanly.");
-  
-  if (channel) {
-    channel.send({
-      type: 'broadcast',
-      event: 'clear-live-quiz',
-      payload: { status: "terminated" }
-    });
-  }
-  updateTeacherStatusText("Inactive (Waiting for staging input...)");
-};
+}; // <--- THIS CLOSES window.startTeacherConnection PERFECTLY
 
 // ============================================================================
 // WHITEBOARD UTILITY CORE
