@@ -71,6 +71,7 @@
     <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
   </div>
 </section>
+
 <section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
   <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #f1c40f;">🏆 Quiz Master Control Console</h3>
   
@@ -83,6 +84,27 @@
     </select>
   </div>
 
+  <div style="background: #34495e; padding: 12px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #455a64;">
+    <details>
+      <summary style="font-weight: bold; color: #f1c40f; cursor: pointer; outline: none; user-select: none;">
+        📝 Pre-Plan / Bulk Import Quiz Questions
+      </summary>
+      <div style="margin-top: 10px;">
+        <p style="font-size: 11px; color: #bdc3c7; margin: 0 0 8px 0; line-height: 1.4;">
+          Paste your quiz below. Format: <code>Question | Opt A | Opt B | Opt C | Opt D | CorrectIndex</code><br>
+          <em>*Note: You can include 2, 3, or 4 options! The last number (0 to 3) points to the correct answer.</em>
+        </p>
+        <textarea id="quizBulkInput" rows="5" placeholder="Example:&#10;What is 5 + 5? | 8 | 10 | 12 | 15 | 1&#10;Is the sun hot? | True | False | 0" style="width: 100%; box-sizing: border-box; padding: 8px; font-family: monospace; font-size: 12px; border-radius: 4px; border: none; margin-bottom: 8px;"></textarea>
+        
+        <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center;">
+          <button id="importQuizBtn" style="background: #2ecc71; color: white; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 12px;">
+            📥 Load Into Lesson Queue
+          </button>
+          <span id="quizQueueStatus" style="font-size: 12px; font-weight: bold; color: #bdc3c7;">Queue: Empty</span>
+        </div>
+      </div>
+    </details>
+  </div>
   <div id="quizSetupBlock">
     <label for="quizQuestion" style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px; color: #bdc3c7;">QUIZ QUESTION:</label>
     <input type="text" id="quizQuestion" placeholder="Type game show question here..." style="width: 100%; margin-bottom: 15px; padding: 8px; box-sizing: border-box; background: #ffffff; color: #333333; border: none; border-radius: 4px; font-size: 14px;">
