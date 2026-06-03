@@ -390,6 +390,95 @@ function handleIncomingStudentAnswer(payload) { console.log("Incoming student an
 function handleIncomingVote(payload) { console.log("Incoming poll vote:", payload); }
 
 // ============================================================================
+// LIVE PAYLOAD TRANSMISSION ENGINES: BROADCASTING TO PUPIL DEVICES
+// ============================================================================
+function launchCurrentActiveQuiz() {
+  if (!supabaseClient || !channel) {
+    alert("Real-time network channel not active. Check database connectivity.");
+    return;
+  }
+
+  // Gather what's currently in the scratchpad inputs
+  const qInput = document.getElementById('quizQuestion');
+  const modeSelect = document.getElementById('quizModeSelect');
+  const refTextEl = document.getElementById('quizRefText');
+  const optInputs = document.querySelectorAll('.quiz-opt');
+  const correctRadios = document.querySelectorAll('input[name="quizCorrectRadio"]');
+
+  const questionText = qInput ? qInput.value.trim() : "";
+  if (!questionText) {
+    alert("Staging scratchpad is empty! Write a question or click 'STAGE CARD' on a saved question first.");
+    return;
+  }
+
+  const optionsArr = [];
+  optInputs.forEach(input => {
+    if (input.value.trim() !== "") optionsArr.push(input.value.trim());
+  });
+
+  if (optionsArr.length < 2) {
+    alert("You need at least 2 options to start a live quiz transmission!");
+    return;
+  }
+
+  let correctIdx = 0;
+  correctRadios.forEach((radio, idx) => {
+    if (radio.checked) correctIdx = idx;
+  });
+
+  // 1. Build the network transmission payload packet
+  const quizPayloadPacket = {
+    quizId: "live-session-" + Date.now(),
+    question: questionText,
+    options: optionsArr,
+    playstyle: modeSelect ? modeSelect.value : "gameshow",
+    referenceText: (refTextEl && modeSelect.value === "independent") ? refTextEl.value.trim() : "",
+    timestamp: new Date().toISOString()
+  };
+
+  // 2. Broadcast the packet through Supabase to all listening student tablets
+  channel.send({
+    type: 'broadcast',
+    event: 'start-live-quiz',
+    payload: quizPayloadPacket
+  }).then((response) => {
+    console.log("Supabase Quiz Broadcast outbound signature:", response);
+    
+    // Update local Teacher UI to indicate transmission is live
+    if (quizLiveEngine) quizLiveEngine.style.display = "block";
+    if (quizEngineStatus) {
+      quizEngineStatus.textContent = "📡 QUIZ TRANSMISSION LIVE — Awaiting Answers";
+      quizEngineStatus.style.color = "#2ecc71";
+    }
+    
+    // Disable the launch button temporarily so you don't double-fire accidentally
+    if (launchQuizBtn) launchQuizBtn.disabled = true;
+    
+    alert("🚀 Question broadcast successfully! It is now rendering on all pupil viewspaces.");
+  }).catch((err) => {
+    console.error("Transmission breakdown error:", err);
+    alert("Failed to send quiz across the network grid.");
+  });
+}
+
+function terminateLiveQuizSession() {
+  if (!supabaseClient || !channel) return;
+
+  // Clear tracking signals so student screens reset to standard presentation mode
+  channel.send({
+    type: 'broadcast',
+    event: 'clear-live-quiz',
+    payload: { status: "terminated" }
+  });
+
+  // Re-enable dashboard interactive switches
+  if (quizLiveEngine) quizLiveEngine.style.display = "none";
+  if (launchQuizBtn) launchQuizBtn.disabled = false;
+  
+  alert("Live quiz closed. Student screens returned to presentation mode.");
+}
+
+// ============================================================================
 // WHITEBOARD UTILITY CORE
 // ============================================================================
 function pushToHistory() {
@@ -796,6 +885,16 @@ function setupEventListeners() {
       if (supabaseClient) await supabaseClient.auth.signOut();
       window.location.href = "index.html";
     });
+  }
+
+  // ============================================================================
+  // LIVE QUIZ IGNITION CLICK HOOKS
+  // ============================================================================
+  if (launchQuizBtn) {
+    launchQuizBtn.addEventListener('click', launchCurrentActiveQuiz);
+  }
+  if (endQuizBtn) {
+    endQuizBtn.addEventListener('click', terminateLiveQuizSession);
   }
 }
 

@@ -32,6 +32,13 @@ const pupilPollQuestion = document.getElementById('pupilPollQuestion');
 const pupilPollOptions = document.getElementById('pupilPollOptions');
 const pupilPollStatus = document.getElementById('pupilPollStatus');
 
+// Quiz UI Elements
+const pupilQuizView = document.getElementById('pupilQuizView');
+const pupilQuizQuestion = document.getElementById('pupilQuizQuestion');
+const pupilQuizOptions = document.getElementById('pupilQuizOptions');
+const pupilQuizStatus = document.getElementById('pupilQuizStatus');
+const pupilQuizRefText = document.getElementById('pupilQuizRefText');
+
 // ==========================================
 // 3. APPLICATION STATE VARIABLES
 // ==========================================
@@ -191,7 +198,6 @@ function sendBoardSnapshotToTeacher() {
 function startLiveConnection(roomCode) {
   if (!supabaseClient) return;
 
-  // Simplification Fix: Strip config restrictions to fix event channel dropouts
   liveChannel = supabaseClient.channel(`room_${roomCode}`);
 
   liveChannel
@@ -243,11 +249,9 @@ function startLiveConnection(roomCode) {
     .on('broadcast', { event: 'start-poll' }, (response) => {
       if (!pupilWhiteboardView || !pupilPollView || !pupilPollQuestion || !pupilPollOptions || !pupilPollStatus) return;
       
-      // Safety fix: Support flat payload variables if nested keys fail
       const data = response.payload || response;
       if (!data || !data.question) return;
 
-      // Hijack view space instantly
       pupilWhiteboardView.style.display = 'none';
       pupilPollView.style.display = 'block';
       pupilPollStatus.style.display = 'none';
@@ -291,7 +295,80 @@ function startLiveConnection(roomCode) {
       pupilPollView.style.display = 'none';
       pupilWhiteboardView.style.display = 'block';
     })
+
+    // ========================================================================
+    // LIVE QUIZ INTERCEPT NETWORK ROUTING LAYERS
+    // ========================================================================
+    .on('broadcast', { event: 'start-live-quiz' }, ({ payload }) => {
+      if (!pupilWhiteboardView || !pupilQuizView || !pupilQuizQuestion || !pupilQuizOptions) return;
+      if (pupilPollView) pupilPollView.style.display = 'none'; 
+
+      pupilWhiteboardView.style.display = 'none';
+      pupilQuizView.style.display = 'block';
+      if (pupilQuizStatus) pupilQuizStatus.style.display = 'none';
+
+      pupilQuizQuestion.textContent = payload.question;
+      pupilQuizOptions.innerHTML = ''; 
+
+      if (pupilQuizRefText) {
+        if (payload.playstyle === "independent" && payload.referenceText) {
+          pupilQuizRefText.textContent = payload.referenceText;
+          pupilQuizRefText.style.display = "block";
+        } else {
+          pupilQuizRefText.style.display = "none";
+          pupilQuizRefText.textContent = "";
+        }
+      }
+
+      if (payload.options && Array.isArray(payload.options)) {
+        payload.options.forEach((optionText, index) => {
+          const btn = document.createElement('button');
+          btn.textContent = optionText;
+          btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #2980b9; border-radius: 6px; background: #ebf5fb; font-size: 16px; font-weight: bold; cursor: pointer; color: #2980b9; transition: all 0.2s; outline: none; margin-bottom: 8px; text-align: left;";
+          
+          btn.onmouseover = () => { btn.style.background = "#2980b9"; btn.style.color = "#ffffff"; };
+          btn.onmouseout = () => { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; };
+
+          btn.addEventListener('click', () => {
+            liveChannel.send({
+              type: 'broadcast',
+              event: 'submit-answer', 
+              payload: { name: studentName, optionSelected: index, textValue: optionText }
+            });
+            
+            const allOptionBtns = pupilQuizOptions.querySelectorAll('button');
+            allOptionBtns.forEach(b => { 
+              b.disabled = true; 
+              b.style.opacity = "0.4"; 
+              b.style.cursor = "default";
+              b.onmouseover = null; 
+            });
+            
+            btn.style.background = "#2ecc71";
+            btn.style.color = "#ffffff";
+            btn.style.opacity = "1";
+
+            if (pupilQuizStatus) {
+              pupilQuizStatus.textContent = "✓ Answer submitted to teacher panel!";
+              pupilQuizStatus.style.display = 'block';
+              pupilQuizStatus.style.color = '#2ecc71';
+            }
+          });
+          
+          pupilQuizOptions.appendChild(btn);
+        });
+      }
+    })
+    .on('broadcast', { event: 'clear-live-quiz' }, () => {
+      if (!pupilWhiteboardView || !pupilQuizView) return;
+      
+      pupilQuizView.style.display = 'none';
+      pupilWhiteboardView.style.display = 'block';
+    })
     
+    // ========================================================================
+    // PIPELINE SUBSCRIPTION IGNITION CORE
+    // ========================================================================
     .subscribe((status) => {
       if (!statusBar) return;
       if (status === 'SUBSCRIBED') {
