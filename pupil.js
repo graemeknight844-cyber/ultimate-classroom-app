@@ -330,10 +330,14 @@ function startLiveConnection(roomCode) {
           btn.onmouseout = () => { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; };
 
           btn.addEventListener('click', () => {
+            // FIX APPLIED HERE: Sending perfectly matched parameters down the network line!
             liveChannel.send({
               type: 'broadcast',
               event: 'submit-answer', 
-              payload: { name: studentName, optionSelected: index, textValue: optionText }
+              payload: { 
+                studentName: studentName, 
+                chosenIndex: index 
+              }
             });
             
             const allOptionBtns = pupilQuizOptions.querySelectorAll('button');
@@ -349,7 +353,7 @@ function startLiveConnection(roomCode) {
             btn.style.opacity = "1";
 
             if (pupilQuizStatus) {
-              pupilQuizStatus.textContent = "✓ Answer submitted to teacher panel!";
+              `✓ Answer submitted to teacher panel!`;
               pupilQuizStatus.style.display = 'block';
               pupilQuizStatus.style.color = '#2ecc71';
             }
