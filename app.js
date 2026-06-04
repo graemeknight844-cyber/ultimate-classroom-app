@@ -32,7 +32,7 @@ let canvasHistory = [];
 
 // POLLING DATA STRUCTURES
 let pollActive = false;
-let activePollData = { question: "", options: [], votes: [0,0,0,0], correctOptionIndex: null, studentVotes: {} };
+let activePollData = { question: '', options: [], votes: {} };
 let savedPollsHistory = []; // Keeps track of completed polls for the PDF export
 
 // Global DOM references
@@ -46,35 +46,14 @@ let timerDisplay, freezeBtn, signOutBtn;
 let pollModeBtn, pollPanel, pollSetup, pollLiveResults;
 let pollQuestionInput, startPollBtn, endPollBtn, livePollQuestion, resultsBarsContainer;
 
-/// === MAKE SURE THESE TWO LINES ARE ALIVE HERE ===
+// === MAKE SURE THESE TWO LINES ARE ALIVE HERE ===
 let studentInspectBanner;
 let leavePupilBoardBtn;
-
-// ============================================================================
-// MODULAR QUIZ MASTER DATA MATRIX ENGINE STRUCTURE
-// ============================================================================
-let quizState = {
-  isActive: false,
-  currentMode: "gameshow",
-  plannedQueue: [],       
-  currentQueueIndex: 0,   
-  question: "",
-  options: [],
-  correctAnswerIndex: -1,
-  startTime: null,        
-  submissions: {},
-  leaderboardScores: {}
-};
-
-// Quiz DOM Component Element Handles
-let quizPanel, quizModeSelect, quizQuestionInput, launchQuizBtn, endQuizBtn, quizLiveEngine, quizEngineStatus, quizDataDisplayContainer;
-let quizBulkInput, importQuizBtn, quizQueueStatus;
 
 // Timer Variables
 let timerInterval = null;
 let isTimerRunning = false;
 let timerMinInput, timerSecInput, timerToggleBtn;
-
 // ============================================================================
 // INITIALIZATION ENGINE (Fires once HTML is fully loaded)
 // ============================================================================
@@ -102,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
   freezeBtn = document.getElementById('freezeBtn');
   signOutBtn = document.querySelector('.sign-out'); 
 
+
+
   // Bind Polling DOM Elements
   pollModeBtn = document.getElementById('pollModeBtn');
   pollPanel = document.getElementById('pollPanel');
@@ -120,25 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (leavePupilBoardBtn) {
     leavePupilBoardBtn.addEventListener('click', revertToTeacherPresentationView);
   }
-
-  // Bind Quiz Master Dashboard Component Elements
-  quizPanel = document.getElementById('quizPanel');
-  quizModeSelect = document.getElementById('quizModeSelect');
-  quizQuestionInput = document.getElementById('quizQuestion');
-  launchQuizBtn = document.getElementById('launchQuizBtn');
-  endQuizBtn = document.getElementById('endQuizBtn');
-  quizLiveEngine = document.getElementById('quizLiveEngine');
-  quizEngineStatus = document.getElementById('quizEngineStatus');
-  quizDataDisplayContainer = document.getElementById('quizDataDisplayContainer');
-  
-  // New Pre-Planning Imports bindings
-  quizBulkInput = document.getElementById('quizBulkInput');
-  importQuizBtn = document.getElementById('importQuizBtn');
-  quizQueueStatus = document.getElementById('quizQueueStatus');
-
-  if (importQuizBtn) {
-    importQuizBtn.addEventListener('click', handleBulkQuizImport);
-  }
+  // ===================================================
 
   if (ctx) {
     ctx.lineWidth = sizeThicknessSlider.value;
@@ -150,743 +113,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   updatePaginationUI();
+  setupEventListeners();
+  // Connect Realtime Broadcast Listener Dynamic Switcher Engine
+  window.startTeacherConnection = function(roomCode) {
+    if (!supabaseClient) return;
 
-  // ============================================================================
-  // GLOBAL CONTROLLER: DYNAMIC QUIZ PLAYSTYLE INTERFACE SWITCHER
-  // ============================================================================
-  window.toggleQuizContextFields = function(selectedPlaystyleValue) {
-    const comprehensionWrapper = document.getElementById('quizComprehensionWrapper');
-    if (!comprehensionWrapper) return;
-    
-    if (selectedPlaystyleValue === "independent") {
-      comprehensionWrapper.style.display = "block";
-    } else {
-      comprehensionWrapper.style.display = "none";
-      const refTextArea = document.getElementById('quizRefText');
-      if (refTextArea) refTextArea.value = ""; 
-    }
+    // Dynamically connect to the target room channel sequence
+    channel = supabaseClient.channel(`room_${roomCode}`);
+
+    // Attach listeners to the new dynamic channel
+    channel
+      .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
+      .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
+      .subscribe((status) => {
+        console.log(`Teacher channel status for room_${roomCode}:`, status);
+      });
   };
 
-  // ============================================================================
-  // CORE DATA ENGINE: PERSISTENT SESSION DECK STORAGE MANAGEMENT
-  // ============================================================================
-  const addBtn = document.getElementById('addQuestionToBankBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', saveCurrentFormToPersistentDeckBank);
-  }
+  // Connect instantly to the standard testing room configuration
+  window.startTeacherConnection("8492");
+});
 
- // ============================================================================
-// REAL-TIME CONNECTION CONNECTION & INBOUND MULTI-STREAM INTERCEPTOR
-// ============================================================================
-window.startTeacherConnection = function(roomCode) {
-  if (!supabaseClient) return;
-
-  channel = supabaseClient.channel(`room_${roomCode}`);
-
-  channel
-    .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
-      if (payload && payload.optionSelected !== undefined) {
-        console.log(`Quiz submission received from student [${payload.name || payload.studentName}]:`, payload);
-        
-        const accurateName = payload.name || payload.studentName || "Anonymous-Student";
-        if (typeof window.activeLiveQuizMetrics === 'undefined') {
-          window.activeLiveQuizMetrics = {};
-        }
-        
-        window.activeLiveQuizMetrics[accurateName] = {
-          choiceIndex: payload.optionSelected,
-          choiceText: payload.textValue || "",
-          timestamp: new Date().toLocaleTimeString()
-        };
-        
-        if (typeof updateTeacherQuizDashboardUI === "function") {
-          updateTeacherQuizDashboardUI();
-        } else if (typeof renderLiveSubmissionsGrid === "function") {
-          renderLiveSubmissionsGrid();
-        }
-        
-        // CRITICAL FIX: This line forces the bar graphs to update dynamically!
-        if (typeof evaluateAutomationProgress === "function") {
-          evaluateAutomationProgress();
-        }
-      } 
-      else {
-        handleIncomingStudentAnswer(payload); 
-      }
-    })
-    .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { 
-      handleIncomingVote(payload); 
-    })
-    .subscribe((status) => {
-      console.log(`Teacher channel status for room_${roomCode}:`, status);
-    });
-};
-
-// Connect instantly to the standard testing room configuration
-window.startTeacherConnection("8492");
-
-// Initialize whiteboard tools safely
-setupEventListeners();
-}); // <-- THIS CLOSES DOMContentLoaded
 
 // ============================================================================
-// QUIZ PRESENTATION ENGINE & BUTTON BINDINGS (OUTSIDE DOMContentLoaded)
+// WHITEBOARD UTILITY CORE
 // ============================================================================
-
-// CRITICAL FIX: Renamed this function so it never overwrites your whiteboard buttons!
-function initQuizSystemEventListeners() {
-  const launchBtn = document.getElementById('launchQuizBtn');
-  const endBtn = document.getElementById('endQuizBtn');
-
-  if (launchBtn) {
-    launchBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (typeof window.launchCurrentActiveQuiz === 'function') {
-        window.launchCurrentActiveQuiz();
-      }
-    });
-  }
-
-  if (endBtn) {
-    endBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (typeof window.endCurrentActiveQuiz === 'function') {
-        window.endCurrentActiveQuiz();
-      }
-    });
-  }
-}
-
-// Bind quiz buttons perfectly after the page loads
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initQuizSystemEventListeners);
-} else {
-  initQuizSystemEventListeners();
-}
-
-let automatedQuizState = {
-  isActive: false,
-  currentQuestionIndex: 0,
-  questionsDeck: [], 
-  totalActiveStudents: 3 
-};
-
-function getLiveConnectedStudentCount() {
-  return automatedQuizState.totalActiveStudents;
-}
-
-function drawTeacherPresentationCharts() {
-  const chartGrid = document.getElementById('presLiveBarGraphGrid');
-  if (!chartGrid || !automatedQuizState.isActive) return;
-
-  const currentQuestion = automatedQuizState.questionsDeck[automatedQuizState.currentQuestionIndex];
-  if (!currentQuestion) return;
-
-  const voteDistributionCounts = {};
-  currentQuestion.options.forEach((_, idx) => { voteDistributionCounts[idx] = 0; });
-
-  let totalResponsesCount = 0;
-  if (typeof window.activeLiveQuizMetrics !== 'undefined') {
-    Object.keys(window.activeLiveQuizMetrics).forEach(student => {
-      const choiceIdx = window.activeLiveQuizMetrics[student].choiceIndex;
-      if (voteDistributionCounts[choiceIdx] !== undefined) {
-        voteDistributionCounts[choiceIdx]++;
-        totalResponsesCount++;
-      }
-    });
-  }
-
-  const currentCountEl = document.getElementById('presCurrentAnswersCount');
-  const targetCountEl = document.getElementById('presTargetCount');
-  if (currentCountEl) currentCountEl.textContent = totalResponsesCount;
-  if (targetCountEl) targetCountEl.textContent = getLiveConnectedStudentCount();
-
-  chartGrid.innerHTML = '';
-  
-  currentQuestion.options.forEach((optionText, index) => {
-    const rawVotes = voteDistributionCounts[index] || 0;
-    const maxTarget = getLiveConnectedStudentCount() || 1;
-    const computedPercentageHeight = Math.min(100, (rawVotes / maxTarget) * 100);
-
-    const pillarContainer = document.createElement('div');
-    pillarContainer.style.cssText = "flex: 1; display: flex; flex-direction: column; align-items: center; max-width: 150px; height: 100%; justify-content: flex-end;";
-
-    const voteLabel = document.createElement('div');
-    voteLabel.style.cssText = "font-weight: bold; color: #2c3e50; margin-bottom: 8px; font-size: 16px;";
-    voteLabel.textContent = `${rawVotes} votes`;
-
-    const visualBarCol = document.createElement('div');
-    visualBarCol.style.cssText = `width: 100%; height: ${computedPercentageHeight}%; background: #2980b9; border-radius: 4px 4px 0 0; transition: height 0.4s ease; min-height: 4px; box-shadow: inset 0 -10px 0 rgba(0,0,0,0.05);`;
-
-    const optionLabel = document.createElement('div');
-    optionLabel.style.cssText = "font-size: 13px; font-weight: bold; color: #555; text-align: center; margin-top: 10px; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
-    optionLabel.textContent = optionText;
-
-    pillarContainer.appendChild(voteLabel);
-    pillarContainer.appendChild(visualBarCol);
-    pillarContainer.appendChild(optionLabel);
-    chartGrid.appendChild(pillarContainer);
-  });
-}
-
-window.launchCurrentActiveQuiz = function() {
-  console.log("Launching Active Quiz Presentation Sequence...");
-  
-  if (typeof quizState !== 'undefined' && quizState.plannedQueue && quizState.plannedQueue.length > 0) {
-    automatedQuizState.questionsDeck = quizState.plannedQueue;
-  } else {
-    const qInput = document.getElementById('quizQuestion');
-    const optInputs = document.querySelectorAll('.quiz-opt');
-
-    const questionText = qInput ? qInput.value.trim() : "";
-    if (!questionText) {
-      alert("Staging layout empty! Please write a question first.");
-      return;
-    }
-
-    const optionsArr = [];
-    optInputs.forEach(input => { if (input.value.trim() !== "") optionsArr.push(input.value.trim()); });
-
-    automatedQuizState.questionsDeck = [{ question: questionText, options: optionsArr }];
-  }
-
-  automatedQuizState.isActive = true;
-  automatedQuizState.currentQuestionIndex = 0;
-  window.activeLiveQuizMetrics = {};
-
-  const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
-  const presentationView = document.getElementById('teacherQuizPresentationView');
-  
-  if (whiteboardView) whiteboardView.style.display = 'none';
-  if (presentationView) presentationView.style.display = 'block';
-
-  runAutomatedQuestionSequence();
-};
-
-function runAutomatedQuestionSequence() {
-  if (!automatedQuizState.isActive) return;
-
-  const currentIndex = automatedQuizState.currentQuestionIndex;
-  const totalQuestions = automatedQuizState.questionsDeck.length;
-
-  if (currentIndex >= totalQuestions) {
-    window.endCurrentActiveQuiz();
-    return;
-  }
-
-  const currentQuestionData = automatedQuizState.questionsDeck[currentIndex];
-  window.activeLiveQuizMetrics = {}; 
-
-  const numLabel = document.getElementById('presQuestionNumber');
-  const txtLabel = document.getElementById('presQuestionText');
-  const statusMarquee = document.getElementById('presStatusTextMarquee');
-
-  if (numLabel) numLabel.textContent = `Question ${currentIndex + 1} / ${totalQuestions}`;
-  if (txtLabel) txtLabel.textContent = currentQuestionData.question;
-  if (statusMarquee) statusMarquee.textContent = "⏳ Synchronizing pupil iPads countdown cards...";
-
-  if (typeof channel !== 'undefined' && channel) {
-    channel.send({
-      type: 'broadcast',
-      event: 'quiz-countdown',
-      payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
-    });
-  }
-
-  drawTeacherPresentationCharts();
-
-  setTimeout(() => {
-    if (!automatedQuizState.isActive) return;
-
-    if (typeof channel !== 'undefined' && channel) {
-      channel.send({
-        type: 'broadcast',
-        event: 'start-live-quiz',
-        payload: {
-          question: currentQuestionData.question,
-          options: currentQuestionData.options,
-          playstyle: "gameshow"
-        }
-      });
-    }
-
-    if (statusMarquee) statusMarquee.textContent = "🚀 QUESTION ACTIVE — Awaiting student feedback responses...";
-  }, 3200);
-}
-
-function evaluateAutomationProgress() {
-  if (!automatedQuizState.isActive) return;
-
-  drawTeacherPresentationCharts();
-
-  const currentResponsesCount = Object.keys(window.activeLiveQuizMetrics).length;
-  const targetCount = getLiveConnectedStudentCount();
-  const statusMarquee = document.getElementById('presStatusTextMarquee');
-
-  if (currentResponsesCount >= targetCount && targetCount > 0) {
-    if (statusMarquee) {
-      statusMarquee.textContent = "✓ Everyone locked in! Loading next question...";
-      statusMarquee.style.color = "#2ecc71";
-    }
-
-    setTimeout(() => {
-      if (statusMarquee) statusMarquee.style.color = "#7f8c8d";
-      automatedQuizState.currentQuestionIndex++;
-      runAutomatedQuestionSequence();
-    }, 2500); 
-  }
-}
-
-window.endCurrentActiveQuiz = function() {
-  automatedQuizState.isActive = false;
-  
-  if (typeof channel !== 'undefined' && channel) {
-    channel.send({ type: 'broadcast', event: 'clear-live-quiz', payload: { status: "terminated" } });
-  }
-
-  const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
-  const presentationView = document.getElementById('teacherQuizPresentationView');
-  
-  if (whiteboardView) whiteboardView.style.display = 'block';
-  if (presentationView) presentationView.style.display = 'none';
-};
-
-// ============================================================================
-// GLOBAL SCOPE DECK STORAGE CONSTRUCTORS (Safely outside initialization thread)
-// ============================================================================
-let persistentQuizDeckBank = [];
-
-function saveCurrentFormToPersistentDeckBank() {
-  const qInput = document.getElementById('quizQuestion');
-  const refTextEl = document.getElementById('quizRefText');
-  const optInputs = document.querySelectorAll('.quiz-opt');
-  const correctRadios = document.querySelectorAll('input[name="quizCorrectRadio"]');
-  
-  const questionText = qInput ? qInput.value.trim() : "";
-  if (!questionText) {
-    alert("Please write a question before adding it to your lesson session bank deck!");
-    return;
-  }
-  
-  const optionsArr = [];
-  optInputs.forEach(input => {
-    if (input.value.trim() !== "") optionsArr.push(input.value.trim());
-  });
-  
-  if (optionsArr.length < 2) {
-    alert("Please provide at least two valid answer choice choices!");
-    return;
-  }
-  
-  let correctIdx = 0;
-  correctRadios.forEach((radio, idx) => {
-    if (radio.checked) correctIdx = idx;
-  });
-  
-  const questionCard = {
-    id: "quiz-card-" + Date.now(),
-    question: questionText,
-    options: optionsArr,
-    correctAnswerIndex: correctIdx,
-    playstyle: document.getElementById('quizModeSelect').value,
-    referenceText: refTextEl ? refTextEl.value.trim() : ""
-  };
-  
-  persistentQuizDeckBank.push(questionCard);
-  renderPersistentDeckBankUI();
-  
-  if (qInput) qInput.value = "";
-  if (refTextEl) refTextEl.value = "";
-  optInputs.forEach(i => i.value = "");
-}
-
-function renderPersistentDeckBankUI() {
-  const container = document.getElementById('quizPersistentBankContainer');
-  const badge = document.getElementById('quizBankCountBadge');
-  if (!container) return;
-  
-  if (badge) badge.textContent = `${persistentQuizDeckBank.length} Questions Saved`;
-  
-  if (persistentQuizDeckBank.length === 0) {
-    container.innerHTML = `<em style="color: #7f8c8d; font-size: 12px; display: block; padding: 10px 0; text-align: center;">No questions stored yet. Build questions above to load your session bank.</em>`;
-    return;
-  }
-  
-  container.innerHTML = "";
-  persistentQuizDeckBank.forEach((card, idx) => {
-    const cardRow = document.createElement('div');
-    cardRow.style.cssText = "display: flex; align-items: center; justify-content: space-between; background: #34495e; padding: 8px 12px; border-radius: 4px; border-left: 4px solid #3498db; margin-bottom: 6px;";
-    
-    const textDetails = document.createElement('div');
-    textDetails.style.cssText = "max-width: 70%;";
-    
-    const title = document.createElement('div');
-    title.style.cssText = "font-weight: bold; font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
-    title.textContent = `${idx + 1}. ${card.question}`;
-    
-    const subtitle = document.createElement('div');
-    subtitle.style.cssText = "font-size: 11px; color: #bdc3c7; margin-top: 2px;";
-    subtitle.textContent = `Mode: ${card.playstyle === 'gameshow' ? '⚡ Speed Competitor' : '📖 Self-Directed'} | Choices: ${card.options.length}`;
-    
-    textDetails.appendChild(title);
-    textDetails.appendChild(subtitle);
-    
-    const stageBtn = document.createElement('button');
-    stageBtn.textContent = "⚡ STAGE CARD";
-    stageBtn.style.cssText = "background: #1abc9c; color: white; border: none; padding: 5px 10px; font-size: 11px; font-weight: bold; border-radius: 3px; cursor: pointer;";
-    
-    stageBtn.addEventListener('click', () => {
-      if (document.getElementById('quizQuestion')) document.getElementById('quizQuestion').value = card.question;
-      document.getElementById('quizModeSelect').value = card.playstyle;
-      window.toggleQuizContextFields(card.playstyle);
-      
-      if (card.referenceText && document.getElementById('quizRefText')) {
-        document.getElementById('quizRefText').value = card.referenceText;
-      }
-      
-      const formOpts = document.querySelectorAll('.quiz-opt');
-      formOpts.forEach((input, oIdx) => {
-        input.value = card.options[oIdx] ? card.options[oIdx] : "";
-      });
-      
-      const formRadios = document.querySelectorAll('input[name="quizCorrectRadio"]');
-      if (formRadios[card.correctAnswerIndex]) formRadios[card.correctAnswerIndex].checked = true;
-    });
-    
-    cardRow.appendChild(textDetails);
-    cardRow.appendChild(stageBtn);
-    container.appendChild(cardRow);
-  });
-}
-
-// ============================================================================
-// BULK TEXT-BOX QUIZ QUEUE PARSER ENGINE
-// ============================================================================
-function handleBulkQuizImport() {
-  if (!quizBulkInput || !quizBulkInput.value.trim()) {
-    alert("Please paste some quiz data into the text box first!");
-    return;
-  }
-
-  const rawLines = quizBulkInput.value.split('\n');
-  const parsedQuestions = [];
-
-  rawLines.forEach((line, lineIndex) => {
-    const cleanLine = line.trim();
-    if (!cleanLine) return; 
-
-    const segments = cleanLine.split('|').map(s => s.trim());
-    
-    if (segments.length < 4) {
-      console.warn(`Line ${lineIndex + 1} skipped due to invalid segment counts.`);
-      return;
-    }
-
-    const questionText = segments[0];
-    const correctIndexStr = segments[segments.length - 1];
-    const correctIdx = parseInt(correctIndexStr);
-    const optionArray = segments.slice(1, segments.length - 1);
-
-    if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= optionArray.length) {
-      console.warn(`Line ${lineIndex + 1} skipped: Correct index marker is out of option bounds.`);
-      return;
-    }
-
-    parsedQuestions.push({
-      question: questionText,
-      options: optionArray, 
-      correctAnswerIndex: correctIdx
-    });
-  });
-
-  if (parsedQuestions.length === 0) {
-    alert("Could not parse any valid quiz questions. Check your formatting criteria examples!");
-    return;
-  }
-
-  quizState.plannedQueue = parsedQuestions;
-  quizState.currentQueueIndex = 0;
-
-  if (quizQueueStatus) {
-    quizQueueStatus.textContent = `Queue: ${parsedQuestions.length} Qs Loaded!`;
-    quizQueueStatus.style.color = "#2ecc71"; 
-  }
-
-  loadQuestionFromQueueIntoInputs(0);
-  alert(`Success! ${parsedQuestions.length} questions successfully loaded into your lesson planning queue.`);
-}
-
-function loadQuestionFromQueueIntoInputs(index) {
-  if (!quizState.plannedQueue[index]) return;
-  const currentItem = quizState.plannedQueue[index];
-
-  if (quizQuestionInput) quizQuestionInput.value = currentItem.question;
-
-  const inputRows = document.querySelectorAll('.quiz-opt');
-  const radioButtons = document.querySelectorAll('input[name="quizCorrectRadio"]');
-
-  inputRows.forEach((input, idx) => {
-    if (currentItem.options[idx]) {
-      input.value = currentItem.options[idx];
-      input.parentElement.style.opacity = "1"; 
-    } else {
-      input.value = ""; 
-      input.parentElement.style.opacity = "0.4"; 
-    }
-  });
-
-  if (radioButtons[currentItem.correctAnswerIndex]) {
-    radioButtons[currentItem.correctAnswerIndex].checked = true;
-  }
-}
-
-// Fallback listener stubs to prevent channel pipeline routing crashes
-function handleIncomingStudentAnswer(payload) { console.log("Incoming student answer:", payload); }
-function handleIncomingVote(payload) { console.log("Incoming poll vote:", payload); }
-
-// ============================================================================
-// SINGLE DEFINITION REAL-TIME CONNECTION PIPELINE
-// ============================================================================
-window.startTeacherConnection = function(roomCode) {
-  if (!supabaseClient) return;
-
-  channel = supabaseClient.channel(`room_${roomCode}`);
-
-  channel
-    .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
-      if (payload && payload.optionSelected !== undefined) {
-        console.log(`Quiz submission received from student [${payload.name || payload.studentName}]:`, payload);
-        
-        const accurateName = payload.name || payload.studentName || "Anonymous-Student";
-        if (typeof window.activeLiveQuizMetrics === 'undefined') {
-          window.activeLiveQuizMetrics = {};
-        }
-        
-        window.activeLiveQuizMetrics[accurateName] = {
-          choiceIndex: payload.optionSelected,
-          choiceText: payload.textValue || "",
-          timestamp: new Date().toLocaleTimeString()
-        };
-        
-        if (typeof updateTeacherQuizDashboardUI === "function") {
-          updateTeacherQuizDashboardUI();
-        } else if (typeof renderLiveSubmissionsGrid === "function") {
-          renderLiveSubmissionsGrid();
-        }
-        
-        if (typeof evaluateAutomationProgress === "function") {
-          evaluateAutomationProgress();
-        }
-      } 
-      else {
-        handleIncomingStudentAnswer(payload); 
-      }
-    })
-    .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { 
-      handleIncomingVote(payload); 
-    })
-    .subscribe((status) => {
-      console.log(`Teacher channel status for room_${roomCode}:`, status);
-    });
-};
-
-// ============================================================================
-// FULL SCREEN QUIZ PRESENTATION GRAPH LOOP CONTROLLER
-// ============================================================================
-let automatedQuizState = {
-  isActive: false,
-  currentQuestionIndex: 0,
-  questionsDeck: [], 
-  totalActiveStudents: 3 
-};
-
-function getLiveConnectedStudentCount() {
-  return automatedQuizState.totalActiveStudents;
-}
-
-function drawTeacherPresentationCharts() {
-  const chartGrid = document.getElementById('presLiveBarGraphGrid');
-  if (!chartGrid || !automatedQuizState.isActive) return;
-
-  const currentQuestion = automatedQuizState.questionsDeck[automatedQuizState.currentQuestionIndex];
-  if (!currentQuestion) return;
-
-  const voteDistributionCounts = {};
-  currentQuestion.options.forEach((_, idx) => { voteDistributionCounts[idx] = 0; });
-
-  let totalResponsesCount = 0;
-  if (typeof window.activeLiveQuizMetrics !== 'undefined') {
-    Object.keys(window.activeLiveQuizMetrics).forEach(student => {
-      const choiceIdx = window.activeLiveQuizMetrics[student].choiceIndex;
-      if (voteDistributionCounts[choiceIdx] !== undefined) {
-        voteDistributionCounts[choiceIdx]++;
-        totalResponsesCount++;
-      }
-    });
-  }
-
-  const currentCountEl = document.getElementById('presCurrentAnswersCount');
-  const targetCountEl = document.getElementById('presTargetCount');
-  if (currentCountEl) currentCountEl.textContent = totalResponsesCount;
-  if (targetCountEl) targetCountEl.textContent = getLiveConnectedStudentCount();
-
-  chartGrid.innerHTML = '';
-  
-  currentQuestion.options.forEach((optionText, index) => {
-    const rawVotes = voteDistributionCounts[index] || 0;
-    const maxTarget = getLiveConnectedStudentCount() || 1;
-    const computedPercentageHeight = Math.min(100, (rawVotes / maxTarget) * 100);
-
-    const pillarContainer = document.createElement('div');
-    pillarContainer.style.cssText = "flex: 1; display: flex; flex-direction: column; align-items: center; max-width: 150px; height: 100%; justify-content: flex-end;";
-
-    const voteLabel = document.createElement('div');
-    voteLabel.style.cssText = "font-weight: bold; color: #2c3e50; margin-bottom: 8px; font-size: 16px;";
-    voteLabel.textContent = `${rawVotes} votes`;
-
-    const visualBarCol = document.createElement('div');
-    visualBarCol.style.cssText = `width: 100%; height: ${computedPercentageHeight}%; background: #2980b9; border-radius: 4px 4px 0 0; transition: height 0.4s ease; min-height: 4px; box-shadow: inset 0 -10px 0 rgba(0,0,0,0.05);`;
-
-    const optionLabel = document.createElement('div');
-    optionLabel.style.cssText = "font-size: 13px; font-weight: bold; color: #555; text-align: center; margin-top: 10px; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
-    optionLabel.textContent = optionText;
-
-    pillarContainer.appendChild(voteLabel);
-    pillarContainer.appendChild(visualBarCol);
-    pillarContainer.appendChild(optionLabel);
-    chartGrid.appendChild(pillarContainer);
-  });
-}
-
-window.launchCurrentActiveQuiz = function() {
-  console.log("Launching Active Quiz Presentation Sequence...");
-  
-  if (!channel) {
-    alert("Network pipeline offline! Attempting to force start...");
-    window.startTeacherConnection("8492");
-  }
-
-  if (quizState.plannedQueue && quizState.plannedQueue.length > 0) {
-    automatedQuizState.questionsDeck = quizState.plannedQueue;
-  } else {
-    const qInput = document.getElementById('quizQuestion');
-    const optInputs = document.querySelectorAll('.quiz-opt');
-
-    const questionText = qInput ? qInput.value.trim() : "";
-    if (!questionText) {
-      alert("Staging layout empty! Please write a question first.");
-      return;
-    }
-
-    const optionsArr = [];
-    optInputs.forEach(input => { if (input.value.trim() !== "") optionsArr.push(input.value.trim()); });
-
-    automatedQuizState.questionsDeck = [{ question: questionText, options: optionsArr }];
-  }
-
-  automatedQuizState.isActive = true;
-  automatedQuizState.currentQuestionIndex = 0;
-  window.activeLiveQuizMetrics = {};
-
-  // UI SWITCH
-  const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
-  const presentationView = document.getElementById('teacherQuizPresentationView');
-  
-  if (whiteboardView) whiteboardView.style.display = 'none';
-  if (presentationView) presentationView.style.display = 'block';
-
-  runAutomatedQuestionSequence();
-};
-
-function runAutomatedQuestionSequence() {
-  if (!automatedQuizState.isActive) return;
-
-  const currentIndex = automatedQuizState.currentQuestionIndex;
-  const totalQuestions = automatedQuizState.questionsDeck.length;
-
-  if (currentIndex >= totalQuestions) {
-    window.endCurrentActiveQuiz();
-    return;
-  }
-
-  const currentQuestionData = automatedQuizState.questionsDeck[currentIndex];
-  window.activeLiveQuizMetrics = {}; 
-
-  const numLabel = document.getElementById('presQuestionNumber');
-  const txtLabel = document.getElementById('presQuestionText');
-  const statusMarquee = document.getElementById('presStatusTextMarquee');
-
-  if (numLabel) numLabel.textContent = `Question ${currentIndex + 1} / ${totalQuestions}`;
-  if (txtLabel) txtLabel.textContent = currentQuestionData.question;
-  if (statusMarquee) statusMarquee.textContent = "⏳ Synchronizing pupil iPads countdown cards...";
-
-  channel.send({
-    type: 'broadcast',
-    event: 'quiz-countdown',
-    payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
-  });
-
-  drawTeacherPresentationCharts();
-
-  setTimeout(() => {
-    if (!automatedQuizState.isActive) return;
-
-    channel.send({
-      type: 'broadcast',
-      event: 'start-live-quiz',
-      payload: {
-        question: currentQuestionData.question,
-        options: currentQuestionData.options,
-        playstyle: "gameshow"
-      }
-    });
-
-    if (statusMarquee) statusMarquee.textContent = "🚀 QUESTION ACTIVE — Awaiting student feedback responses...";
-  }, 3200);
-}
-
-function evaluateAutomationProgress() {
-  if (!automatedQuizState.isActive) return;
-
-  drawTeacherPresentationCharts();
-
-  const currentResponsesCount = Object.keys(window.activeLiveQuizMetrics).length;
-  const targetCount = getLiveConnectedStudentCount();
-  const statusMarquee = document.getElementById('presStatusTextMarquee');
-
-  if (currentResponsesCount >= targetCount && targetCount > 0) {
-    if (statusMarquee) {
-      statusMarquee.textContent = "✓ Everyone locked in! Loading next question...";
-      statusMarquee.style.color = "#2ecc71";
-    }
-
-    setTimeout(() => {
-      if (statusMarquee) statusMarquee.style.color = "#7f8c8d";
-      automatedQuizState.currentQuestionIndex++;
-      runAutomatedQuestionSequence();
-    }, 2500); 
-  }
-}
-
-window.endCurrentActiveQuiz = function() {
-  automatedQuizState.isActive = false;
-  
-  if (channel) {
-    channel.send({ type: 'broadcast', event: 'clear-live-quiz', payload: { status: "terminated" } });
-  }
-
-  const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
-  const presentationView = document.getElementById('teacherQuizPresentationView');
-  
-  if (whiteboardView) whiteboardView.style.display = 'block';
-  if (presentationView) presentationView.style.display = 'none';
-};
-
-// ============================================================================
-// WHITEBOARD UTILITY CORE & EVENT HANDLERS
-// ============================================================================
-
-
 function pushToHistory() {
   if (!canvas) return;
   canvasHistory.push(canvas.toDataURL());
@@ -923,38 +174,42 @@ function setActiveTool(tool, activeBtn) {
 // ============================================================================
 function toggleLessonTimer() {
   if (isTimerRunning) {
+    // Pause state execution
     clearInterval(timerInterval);
     isTimerRunning = false;
     timerToggleBtn.textContent = "Start";
-    timerToggleBtn.style.background = "#2ecc71"; 
+    timerToggleBtn.style.background = "#2ecc71"; // Switch back to green
     enableTimerInputs(true);
   } else {
+    // Start countdown execution
     let minutes = parseInt(timerMinInput.value) || 0;
     let seconds = parseInt(timerSecInput.value) || 0;
-    let totalSecondsLeft = (minutes * 60) + seconds;
+    let totalSeconds = (minutes * 60) + seconds;
 
-    if (totalSecondsLeft <= 0) {
+    if (totalSeconds <= 0) {
       alert("Please enter a time greater than 00:00!");
       return;
     }
 
     isTimerRunning = true;
     timerToggleBtn.textContent = "Pause";
-    timerToggleBtn.style.background = "#e74c3c"; 
-    enableTimerInputs(false); 
+    timerToggleBtn.style.background = "#e74c3c"; // Switch to red
+    enableTimerInputs(false); // Lock inputs while ticking
 
+    // Set initial active green color right at launch
     timerMinInput.style.color = "#2ecc71";
     timerSecInput.style.color = "#2ecc71";
 
     timerInterval = setInterval(() => {
-      totalSecondsLeft--;
+      totalSeconds--;
 
-      if (totalSecondsLeft <= 0) {
+      if (totalSeconds <= 0) {
         clearInterval(timerInterval);
         isTimerRunning = false;
         timerMinInput.value = "00";
         timerSecInput.value = "00";
         
+        // Reset colors back to standard white on completion
         timerMinInput.style.color = "#ffffff";
         timerSecInput.style.color = "#ffffff";
         
@@ -964,15 +219,18 @@ function toggleLessonTimer() {
         
         triggerTimerCompletionAlert();
       } else {
-        const m = Math.floor(totalSecondsLeft / 60);
-        const s = totalSecondsLeft % 60;
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
         timerMinInput.value = m.toString().padStart(2, '0');
         timerSecInput.value = s.toString().padStart(2, '0');
 
-        if (totalSecondsLeft <= 30) {
+        // === DYNAMIC COLOR CODING ===
+        if (totalSeconds <= 30) {
+          // Final 30 seconds: Change text color to warning Red
           timerMinInput.style.color = "#e74c3c";
           timerSecInput.style.color = "#e74c3c";
         } else {
+          // Safe zone: Keep text color active Green
           timerMinInput.style.color = "#2ecc71";
           timerSecInput.style.color = "#2ecc71";
         }
@@ -981,16 +239,17 @@ function toggleLessonTimer() {
   }
 }
 
-// Fixed or problem area check? Let's keep scanning.
 function enableTimerInputs(enable) {
   if (!timerMinInput || !timerSecInput) return;
   timerMinInput.disabled = !enable;
   timerSecInput.disabled = !enable;
+  // Visual tracking state styling
   timerMinInput.style.background = enable ? "#34495e" : "#2c3e50";
   timerSecInput.style.background = enable ? "#34495e" : "#2c3e50";
 }
 
 function triggerTimerCompletionAlert() {
+  // Simple visual flash effect on the input boxes to grab teacher attention
   let flashCount = 0;
   const alertInterval = setInterval(() => {
     const isEven = flashCount % 2 === 0;
@@ -1004,6 +263,7 @@ function triggerTimerCompletionAlert() {
     }
   }, 250);
 
+  // Optional: Play a short, soft system beep if you want audio notification
   try {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
@@ -1011,7 +271,7 @@ function triggerTimerCompletionAlert() {
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); 
+    oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + 0.3);
@@ -1040,11 +300,13 @@ function launchPoll() {
   const validOptions = [];
   let detectedCorrectIndex = -1;
 
+  // Find which option the teacher marked as correct
   const correctRadios = document.querySelectorAll('.poll-correct-radio');
 
   optionInputs.forEach((input, idx) => {
     if (input.value.trim() !== "") {
       validOptions.push(input.value.trim());
+      // If this radio element is checked, note its current valid array index position
       if (correctRadios[idx] && correctRadios[idx].checked) {
         detectedCorrectIndex = validOptions.length - 1;
       }
@@ -1056,20 +318,23 @@ function launchPoll() {
     return;
   }
 
+  // Build active state tracking with accuracy profiles
   pollActive = true;
   activePollData = {
     question: questionText,
     options: validOptions,
-    correctAnswerIndex: detectedCorrectIndex, 
-    votes: {} 
+    correctAnswerIndex: detectedCorrectIndex, // Saved safely! (-1 if none selected)
+    votes: {} // Stores studentName: selectedOptionIndex
   };
 
+  // Switch UI windows inside panel
   pollSetup.style.display = 'none';
   pollLiveResults.style.display = 'block';
   livePollQuestion.textContent = questionText;
 
   renderLivePollBars();
 
+  // Send broadcast out to current student client channels
   if (channel) {
     channel.send({
       type: 'broadcast',
@@ -1109,6 +374,7 @@ function renderLivePollBars() {
     label.style.fontWeight = 'bold';
     label.style.fontSize = '13px';
     
+    // Visually flag the correct answer on the teacher's live dashboard view
     if (activePollData.correctAnswerIndex === idx) {
       label.innerHTML = `✅ <span style="color: #2ecc71;">${optionText}</span>`;
     } else {
@@ -1119,6 +385,7 @@ function renderLivePollBars() {
     barTrack.style.cssText = "flex-grow: 1; background: #e1e1eb; height: 20px; border-radius: 4px; overflow: hidden; position: relative;";
 
     const barFill = document.createElement('div');
+    // Color code the bar chart fill: Green if it's the correct option, charcoal gray if standard
     const barColor = (activePollData.correctAnswerIndex === idx) ? '#2ecc71' : '#4a4a68';
     barFill.style.cssText = `background: ${barColor}; width: ${percent}%; height: 100%; transition: width 0.3s ease;`;
 
@@ -1152,7 +419,7 @@ function closeAndSavePoll() {
 }
 
 // ============================================================================
-// WHITEBOARD UTILITY CORE & EVENT HANDLERS (CLEAN UNBROKEN VERSION)
+// EVENT LISTENERS WIRING SETUP
 // ============================================================================
 function setupEventListeners() {
   if (penToolBtn) penToolBtn.addEventListener('click', () => setActiveTool('pen', penToolBtn));
@@ -1160,32 +427,8 @@ function setupEventListeners() {
   if (imgToolBtn) imgToolBtn.addEventListener('click', () => setActiveTool('img', imgToolBtn));
   if (rubberToolBtn) rubberToolBtn.addEventListener('click', () => setActiveTool('rubber', rubberToolBtn));
 
-  const whiteboardModeBtn = document.getElementById('whiteboardModeBtn');
-  const quizModeBtn = document.getElementById('quizModeBtn');
-
-  function switchActiveDashboardView(selectedMode) {
-    if (pollPanel) pollPanel.style.display = 'none';
-    if (quizPanel) quizPanel.style.display = 'none';
-    
-    [whiteboardModeBtn, quizModeBtn, pollModeBtn].forEach(btn => {
-      if (btn) btn.classList.remove('active');
-    });
-
-    if (selectedMode === 'poll' && pollPanel) {
-      pollPanel.style.display = 'block';
-      if (pollModeBtn) pollModeBtn.classList.add('active');
-    } else if (selectedMode === 'quiz' && quizPanel) {
-      quizPanel.style.display = 'block';
-      if (quizModeBtn) quizModeBtn.classList.add('active');
-    } else if (selectedMode === 'whiteboard') {
-      if (whiteboardModeBtn) whiteboardModeBtn.classList.add('active');
-    }
-  }
-
-  if (whiteboardModeBtn) whiteboardModeBtn.addEventListener('click', () => switchActiveDashboardView('whiteboard'));
-  if (pollModeBtn) pollModeBtn.addEventListener('click', () => switchActiveDashboardView('poll'));
-  if (quizModeBtn) quizModeBtn.addEventListener('click', () => switchActiveDashboardView('quiz'));
-
+  // Polling Panel Buttons
+  if (pollModeBtn) pollModeBtn.addEventListener('click', togglePollPanel);
   if (startPollBtn) startPollBtn.addEventListener('click', launchPoll);
   if (endPollBtn) endPollBtn.addEventListener('click', closeAndSavePoll);
 
@@ -1196,6 +439,7 @@ function setupEventListeners() {
     });
   }
 
+  // Drawing Engine Events
   if (canvas && ctx) {
     canvas.addEventListener('mousedown', (e) => {
       if (currentTool !== 'pen' && currentTool !== 'rubber') return;
@@ -1214,6 +458,7 @@ function setupEventListeners() {
 
   if (undoBtn) undoBtn.addEventListener('click', handleUndoAction);
 
+ // Bind Lesson Timer Engine DOM Elements
   timerMinInput = document.getElementById('timerMin');
   timerSecInput = document.getElementById('timerSec');
   timerToggleBtn = document.getElementById('timerToggleBtn');
@@ -1222,6 +467,7 @@ function setupEventListeners() {
     timerToggleBtn.addEventListener('click', toggleLessonTimer);
   }
 
+  // Auto-format helper loops: pads single digits with a zero when clicking away (e.g., '5' becomes '05')
   [timerMinInput, timerSecInput].forEach(input => {
     if (input) {
       input.addEventListener('blur', () => {
@@ -1383,13 +629,13 @@ function handleCanvasClick(e) {
 // DRAG & RESIZE VECTOR ENGINE
 // ============================================================================
 function makeElementDraggableAndResizable(el, allowResize) {
-  let isDraggingObj = false;
-  let isResizingObj = false;
+  let isDragging = false;
+  let isResizing = false;
   let startX, startY, startLeft, startTop, startWidth, startHeight;
 
   el.addEventListener('mousedown', (e) => {
     if (e.target.classList.contains('resize-handle')) return;
-    isDraggingObj = true;
+    isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
     startLeft = el.offsetLeft;
@@ -1404,7 +650,7 @@ function makeElementDraggableAndResizable(el, allowResize) {
     el.appendChild(handle);
 
     handle.addEventListener('mousedown', (e) => {
-      isResizingObj = true;
+      isResizing = true;
       startX = e.clientX;
       startY = e.clientY;
       startWidth = el.offsetWidth;
@@ -1415,13 +661,13 @@ function makeElementDraggableAndResizable(el, allowResize) {
   }
 
   window.addEventListener('mousemove', (e) => {
-    if (isDraggingObj) {
+    if (isDragging) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       el.style.left = `${startLeft + dx}px`;
       el.style.top = `${startTop + dy}px`;
     }
-    if (isResizingObj) {
+    if (isResizing) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       el.style.width = `${Math.max(50, startWidth + dx)}px`;
@@ -1430,8 +676,8 @@ function makeElementDraggableAndResizable(el, allowResize) {
   });
 
   window.addEventListener('mouseup', () => {
-    isDraggingObj = false;
-    isResizingObj = false;
+    isDragging = false;
+    isResizing = false;
   });
 }
 
@@ -1585,12 +831,18 @@ function renderStudentThumbnailDOM(studentData) {
       
       const zoomImg = new Image();
       zoomImg.onload = () => {
+        // 1. Bake elements down safely
         bakeFloatingObjects();
+        
+        // 2. CRITICAL CHANGE: Save the actual teacher content snapshot *before* projecting pupil work
+        // This ensures the current state isn't lost if edits were made since page changes
         saveCurrentBoardState();
         
+        // 3. Clear canvas plane and draw student work
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
         
+        // 4. Reveal the Notification Top Banner to the user 
         if (studentInspectBanner) {
           const bannerText = document.getElementById('inspectBannerText');
           if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${studentData.name}`;
@@ -1604,25 +856,32 @@ function renderStudentThumbnailDOM(studentData) {
   if (liveImg) { liveImg.src = studentData.boardImage; }
 }
 
+// Dedicated function to bring back the teacher's workspace seamlessly
 function revertToTeacherPresentationView() {
   if (!ctx || !canvas) return;
 
+  // Clear student work from drawing plane
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Reload teacher's slide content directly from memory maps array
   if (boardsData[currentBoardIndex]) {
     const originalTeacherImg = new Image();
     originalTeacherImg.src = boardsData[currentBoardIndex];
     originalTeacherImg.onload = () => {
       ctx.drawImage(originalTeacherImg, 0, 0);
+      // Reset local undo trace history arrays specifically back to standard footprint state
       canvasHistory = [canvas.toDataURL()];
     };
   }
 
+  // Hide the notification banner
   if (studentInspectBanner) {
     studentInspectBanner.style.display = "none";
   }
 }
+  if (liveImg) { liveImg.src = studentData.boardImage; }
+
 
 function clearStudentThumbnailsDOM() {
   document.querySelectorAll('.mini-board').forEach(slot => { slot.innerHTML = ''; });
@@ -1639,6 +898,7 @@ function updatePaginationUI() {
   if (pageText) pageText.textContent = `Board ${currentBoardIndex + 1} of ${Math.max(boardsData.length, 1)}`;
 }
 
+// Fixed function boundary layout map
 function saveCurrentBoardState() { 
   if (!canvas) return;
   boardsData[currentBoardIndex] = canvas.toDataURL(); 
@@ -1677,89 +937,7 @@ function loadBoardState(index) {
 }
 
 // ============================================================================
-// LIVE QUIZ BROADCAST TRANSMISSION LAYER
-// ============================================================================
-window.launchCurrentActiveQuiz = function() {
-  console.log("Attempting to broadcast quiz packet...");
-  
-  // 1. Safeguard check to ensure Supabase communication layer is live
-  if (!channel) {
-    alert("Supabase communication room channel is not connected! Refresh and try again.");
-    return;
-  }
-
-  // 2. Extract values from your staged question inputs
-  const questionInput = document.getElementById('quizQuestion');
-  const playstyleSelect = document.getElementById('quizModeSelect');
-  const referenceTextEl = document.getElementById('quizRefText');
-  
-  const questionText = questionInput ? questionInput.value.trim() : "";
-  const playstyleMode = playstyleSelect ? playstyleSelect.value : "gameshow";
-  const independentContextText = referenceTextEl ? referenceTextEl.value.trim() : "";
-
-  // 3. Collect active student multiple choice inputs
-  const optionInputs = document.querySelectorAll('.quiz-opt');
-  const validOptionsArray = [];
-  optionInputs.forEach(input => {
-    if (input.value.trim() !== "") {
-      validOptionsArray.push(input.value.trim());
-    }
-  });
-
-  // 4. Validate before blasting out to students
-  if (!questionText) {
-    alert("Please write or stage a question first before launching!");
-    return;
-  }
-  if (validOptionsArray.length < 2) {
-    alert("Please fill out at least 2 choice options for the students!");
-    return;
-  }
-
-  // 5. Construct a standardized lightweight transmission payload
-  const quizPayloadPacket = {
-    question: questionText,
-    options: validOptionsArray,
-    playstyle: playstyleMode,
-    referenceText: independentContextText
-  };
-
-  console.log("Broadcasting Quiz Package Payload:", quizPayloadPacket);
-
-  // 6. TRANSMIT THE BROADCAST VIA SUPABASE CHANNELS
-  channel.send({
-    type: 'broadcast',
-    event: 'start-live-quiz', // Matches piece #2 inside pupil.js
-    payload: quizPayloadPacket
-  });
-
-  // 7. Update local teacher view indicators so you know it was sent successfully
-  const statusIndicator = document.getElementById('quizEngineStatus');
-  if (statusIndicator) {
-    statusIndicator.textContent = "🚀 QUIZ ACTIVE: Broadcasting to Student Devices...";
-    statusIndicator.style.color = "#2ecc71";
-  }
-};
-
-window.endCurrentActiveQuiz = function() {
-  console.log("Terminating current active quiz block...");
-  if (channel) {
-    channel.send({
-      type: 'broadcast',
-      event: 'clear-live-quiz', // Matches clear hook inside pupil.js
-      payload: { status: "terminated" }
-    });
-  }
-  
-  const statusIndicator = document.getElementById('quizEngineStatus');
-  if (statusIndicator) {
-    statusIndicator.textContent = "Inactive (Waiting for staging input...)";
-    statusIndicator.style.color = "#7f8c8d";
-  }
-};
-
-// ============================================================================
-// ADVANCED REPORT BOOKLET EXPORT MODULE
+// ADVANCED REPORT BOOKLET EXPORT MODULE (With Correct/Incorrect Grid Mapping)
 // ============================================================================
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
@@ -1770,6 +948,7 @@ if (exportBtn) {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
     let isFirstPage = true;
 
+    // PAGE GENERATOR TYPE 1: Whiteboard Lesson Slides & Pupil Submissions
     for (let i = 0; i < boardsData.length; i++) {
       if (!boardsData[i]) continue;
 
@@ -1832,11 +1011,13 @@ if (exportBtn) {
       }
     }
 
+    // PAGE GENERATOR TYPE 2: Dynamic Poll Analytics Data Sheets (with Answer Criteria Mapping)
     if (savedPollsHistory.length > 0) {
       savedPollsHistory.forEach((poll, index) => {
         pdf.addPage([1100, 520], 'landscape');
 
-        pdf.setFillColor(46, 204, 113); 
+        // Draw Header Track
+        pdf.setFillColor(46, 204, 113); // Clean Green theme for poll sheets
         pdf.rect(0, 0, 1100, 45, 'F');
 
         pdf.setTextColor(255, 255, 255);
@@ -1844,11 +1025,13 @@ if (exportBtn) {
         pdf.setFontSize(16);
         pdf.text(`SESSION REPORT - COMPLETED CLASSROOM POLL #${index + 1}`, 30, 28);
 
+        // Render Main Question Body text
         pdf.setTextColor(40, 40, 60);
         pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(18);
         pdf.text(`Question Asked: ${poll.question}`, 45, 85);
 
+        // Calculate analytical tally properties
         const voterNames = Object.keys(poll.votes);
         const totalVotes = voterNames.length;
         const tally = {};
@@ -1859,6 +1042,7 @@ if (exportBtn) {
           if(tally[voteIdx] !== undefined) tally[voteIdx]++; 
         });
 
+        // Count how many students matched the correct criteria benchmark choice index
         if (poll.correctAnswerIndex !== undefined && poll.correctAnswerIndex !== -1) {
           voterNames.forEach(name => {
             if (poll.votes[name] === poll.correctAnswerIndex) {
@@ -1879,12 +1063,14 @@ if (exportBtn) {
         }
         pdf.text(statsLabelString, 45, 105);
 
+        // Draw visual analytical bars inside PDF engine layout 
         let currentYOffset = 135;
         poll.options.forEach((optionText, idx) => {
           const count = tally[idx];
           const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
           const isThisOptionCorrect = (poll.correctAnswerIndex === idx);
 
+          // Append correct marker string to options labels inside PDF document
           const finalOptionLabel = isThisOptionCorrect ? `* ${optionText} [CORRECT]` : optionText;
 
           pdf.setTextColor(isThisOptionCorrect ? 39 : 50, isThisOptionCorrect ? 174 : 50, isThisOptionCorrect ? 96 : 60);
@@ -1892,14 +1078,17 @@ if (exportBtn) {
           pdf.setFontSize(13);
           pdf.text(finalOptionLabel, 50, currentYOffset + 14);
 
+          // Background track
           pdf.setFillColor(230, 230, 238);
           pdf.rect(250, currentYOffset, 550, 20, 'F');
 
+          // Progress bar fill (Green if correct choice, default navy slate if incorrect tracking choice)
           if (percent > 0) {
             pdf.setFillColor(isThisOptionCorrect ? 46 : 74, isThisOptionCorrect ? 204 : 74, isThisOptionCorrect ? 113 : 104);
             pdf.rect(250, currentYOffset, (550 * (percent / 100)), 20, 'F');
           }
 
+          // Numerical labels beside bounds
           pdf.setTextColor(70, 70, 90);
           pdf.setFont("Helvetica", "bold");
           pdf.setFontSize(12);
@@ -1908,6 +1097,9 @@ if (exportBtn) {
           currentYOffset += 32; 
         });
 
+        // --------------------------------------------------------------------
+        // DETAILED PUPIL BREAKDOWN MATRIX (WITH HIGH-CONTRAST ASSESSMENT COLORS)
+        // --------------------------------------------------------------------
         currentYOffset += 15; 
         
         pdf.setTextColor(40, 40, 60);
@@ -1916,6 +1108,7 @@ if (exportBtn) {
         pdf.text("Individual Pupil Response Grid", 45, currentYOffset);
         currentYOffset += 12;
 
+        // Table Header row background line
         pdf.setFillColor(74, 74, 104);
         pdf.rect(45, currentYOffset, 1010, 24, 'F');
 
@@ -1937,6 +1130,7 @@ if (exportBtn) {
           pdf.text("No active student submissions recorded for this poll segment.", 60, currentYOffset + 16);
         } else {
           voterNames.forEach((studentName, sIdx) => {
+            // Check canvas page boundaries overflow limit
             if (currentYOffset > 480) {
               pdf.addPage([1100, 520], 'landscape');
               
@@ -1963,6 +1157,7 @@ if (exportBtn) {
             const isCorrect = (poll.correctAnswerIndex !== -1 && chosenIndex === poll.correctAnswerIndex);
             const hasNoCorrectCriteriaSet = (poll.correctAnswerIndex === -1);
 
+            // Row background mapping: Green if correct, light Red if incorrect, standard zebra striping if no key set
             if (hasNoCorrectCriteriaSet) {
               if (sIdx % 2 === 0) {
                 pdf.setFillColor(245, 245, 250);
@@ -1970,16 +1165,18 @@ if (exportBtn) {
               }
             } else {
               if (isCorrect) {
-                pdf.setFillColor(233, 247, 239); 
+                pdf.setFillColor(233, 247, 239); // Clean tint soft translucent green block
               } else {
-                pdf.setFillColor(253, 237, 237); 
+                pdf.setFillColor(253, 237, 237); // Clean tint soft translucent red block
               }
               pdf.rect(45, currentYOffset, 1010, 22, 'F');
             }
             
+            // Draw standard matrix gridline rules
             pdf.setDrawColor(225, 225, 235);
             pdf.rect(45, currentYOffset, 1010, 22, 'S');
 
+            // Print student row values 
             pdf.setTextColor(50, 50, 60);
             pdf.setFont("Helvetica", "bold");
             pdf.setFontSize(11);
@@ -1989,15 +1186,16 @@ if (exportBtn) {
             pdf.setFont("Helvetica", "normal");
             pdf.text(chosenOptionStringText, 350, currentYOffset + 15);
 
+            // Print column evaluation stamps
             if (hasNoCorrectCriteriaSet) {
               pdf.setTextColor(110, 110, 120);
               pdf.text("Ungraded Poll Survey", 850, currentYOffset + 15);
             } else if (isCorrect) {
-              pdf.setTextColor(39, 174, 96); 
+              pdf.setTextColor(39, 174, 96); // Vibrant deep green font text
               pdf.setFont("Helvetica", "bold");
               pdf.text("CORRECT", 850, currentYOffset + 15);
             } else {
-              pdf.setTextColor(192, 57, 43); 
+              pdf.setTextColor(192, 57, 43); // Vibrant deep red font text
               pdf.setFont("Helvetica", "bold");
               pdf.text("INCORRECT", 850, currentYOffset + 15);
             }
