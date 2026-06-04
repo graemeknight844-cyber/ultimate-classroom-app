@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updatePaginationUI();
   setupEventListeners();
 
-  // Connect Realtime Broadcast Listener Dynamic Switcher Engine
+  // Centralized Realtime Network Transmission Switch Engine Routing
   window.startTeacherConnection = function(roomCode) {
     if (typeof supabaseClient !== 'undefined' && supabaseClient) {
       channel = supabaseClient.channel(`room_${roomCode}`)
@@ -127,10 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log("📦 Received package from iPad:", payload);
           
           if (payload.boardImage) {
-            handleIncomingStudentAnswer(payload); 
+            handleIncomingStudentBoard(payload); 
           } 
           else if (payload.chosenIndex !== undefined) {
-            window.handleIncomingQuizAnswer(payload);
+            handleIncomingQuizResponse(payload);
           }
         })
         .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { 
@@ -166,12 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (whiteboardModeBtn) {
     whiteboardModeBtn.addEventListener('click', () => {
-      // 1. Remove the active highlight from the Quiz button and add it to Whiteboard
       if (quizModeBtn) quizModeBtn.classList.remove('active');
       if (typeof pollModeBtn !== 'undefined' && pollModeBtn) pollModeBtn.classList.remove('active');
       whiteboardModeBtn.classList.add('active');
 
-      // 2. Hide the quiz and poll panels, and bring the Whiteboard back to life!
       if (quizPanel) quizPanel.style.display = 'none';
       if (typeof pollPanel !== 'undefined' && pollPanel) pollPanel.style.display = 'none';
       if (teacherWhiteboardView) teacherWhiteboardView.style.display = 'block';
@@ -184,432 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ============================================================================
-  // NEW AUTOMATED QUIZ BUTTON TRACKING LOGIC (PLACED SAFELY INSIDE)
-  // ============================================================================
-  const addBtn = document.getElementById('addQuestionToBankBtn');
-  const launchBtn = document.getElementById('launchQuizBtn');
-  const emergencyBtn = document.getElementById('emergencyEndQuizBtn');
-
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const qInput = document.getElementById('quizQuestionInput');
-      const opt0 = document.getElementById('quizOpt0');
-      const opt1 = document.getElementById('quizOpt1');
-      const opt2 = document.getElementById('quizOpt2');
-      const opt3 = document.getElementById('quizOpt3');
-      const radios = document.getElementsByName('quizCorrectRadio');
-
-      if (!qInput || !qInput.value.trim()) {
-        alert("Please enter a question first before saving!");
-        return;
-      }
-
-      let correctIdx = 0;
-      for (let i = 0; i < radios.length; i++) {
-        if (radios[i].checked) { correctIdx = i; break; }
-      }
-
-      // Ensure quizState variable exists safely
-      if (typeof quizState === 'undefined') {
-        window.quizState = { isActive: false, currentQuestionIndex: 0, plannedQueue: [], activeSubmissions: {} };
-      }
-
-      const quizCard = {
-        question: qInput.value.trim(),
-        options: [
-          opt0?.value.trim() || "Option A",
-          opt1?.value.trim() || "Option B",
-          opt2?.value.trim() || "Option C",
-          opt3?.value.trim() || "Option D"
-        ],
-        correctIndex: correctIdx
-      };
-
-      quizState.plannedQueue.push(quizCard);
-
-      // Clear layout textboxes for next entries
-      qInput.value = "";
-      if (opt0) opt0.value = "";
-      if (opt1) opt1.value = "";
-      if (opt2) opt2.value = "";
-      if (opt3) opt3.value = "";
-
-      // Update counter text element on screen
-      const countBadge = document.getElementById('quizBankCountBadge');
-      if (countBadge) countBadge.innerText = `${quizState.plannedQueue.length} Questions Saved`;
-
-      // Update the list showing saved questions below the inputs
-      const container = document.getElementById('quizPersistentBankContainer');
-      if (container) {
-        container.innerHTML = quizState.plannedQueue.map((item, idx) => `
-          <div style="background: #34495e; padding: 8px 12px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; color: #fff;">
-            <span><strong>${idx + 1}.</strong> ${item.question}</span>
-            <span style="color: #2ecc71; font-weight: bold; font-size: 11px;">Staged</span>
-          </div>
-        `).join('');
-      }
-
-      alert("✓ Question added to your session deck successfully!");
-    });
-  }
-
-  if (launchBtn) {
-    launchBtn.addEventListener('click', () => {
-      if (typeof quizState === 'undefined' || !quizState.plannedQueue || quizState.plannedQueue.length === 0) {
-        alert("Your staged queue is empty! Please build and save at least one question card first.");
-        return;
-      }
-
-      quizState.isActive = true;
-      quizState.currentQuestionIndex = 0;
-
-      const presOverlay = document.getElementById('teacherQuizPresentationView');
-      if (presOverlay) presOverlay.style.display = 'block';
-
-      const activeCard = quizState.plannedQueue[0];
-      const presNum = document.getElementById('presQuestionNumber');
-      const presText = document.getElementById('presQuestionText');
-      const splash = document.getElementById('presCountdownSplashOverlay');
-      const splashNum = document.getElementById('presCountdownNumberBig');
-      const marquee = document.getElementById('presStatusTextMarquee');
-
-      if (presNum) presNum.innerText = `Question 1 / ${quizState.plannedQueue.length}`;
-      if (presText) presText.innerText = activeCard.question;
-      if (marquee) marquee.innerText = "⏳ Get ready! Quiz starting in 3 seconds...";
-      if (splash) splash.style.display = 'flex';
-
-      // Safe live data transmission broadcast check
-      if (typeof channel !== 'undefined' && channel) {
-        channel.send({
-          type: 'broadcast',
-          event: 'start-live-quiz',
-          payload: { question: activeCard.question, options: activeCard.options, playstyle: "gameshow" }
-        });
-      }
-
-      let count = 3;
-      if (splashNum) splashNum.innerText = count;
-      const clock = setInterval(() => {
-        count--;
-        if (count > 0) {
-          if (splashNum) splashNum.innerText = count;
-        } else {
-          clearInterval(clock);
-          if (splash) splash.style.display = 'none';
-          if (marquee) marquee.innerText = "⚡ Live Answer Collection Active! Waiting for responses...";
-        }
-      }, 1000);
-    });
-  }
-
-  if (emergencyBtn) {
-    emergencyBtn.addEventListener('click', () => {
-      if (typeof quizState !== 'undefined') {
-        quizState.isActive = false;
-        quizState.plannedQueue = [];
-      }
-      const presOverlay = document.getElementById('teacherQuizPresentationView');
-      if (presOverlay) presOverlay.style.display = 'none';
-
-      const countBadge = document.getElementById('quizBankCountBadge');
-      if (countBadge) countBadge.innerText = "0 Questions Saved";
-
-      const container = document.getElementById('quizPersistentBankContainer');
-      if (container) {
-        container.innerHTML = `<em style="color: #7f8c8d; font-size: 12px; display: block; padding: 10px 0; text-align: center;">No questions stored yet. Build questions above to load your session bank.</em>`;
-      }
-
-      if (typeof channel !== 'undefined' && channel) {
-        channel.send({ type: 'broadcast', event: 'clear-live-quiz', payload: {} });
-      }
-      alert("Quiz presentation closed successfully.");
-    });
-  }
-
-}); // <--- THIS ONE BRACKET CLOSES EVERYTHING SAFELY AT THE END OF THE INITIALIZATION
-// ============================================================================
-// WHITEBOARD UTILITY CORE
-// ============================================================================
-function pushToHistory() {
-  if (!canvas) return;
-  canvasHistory.push(canvas.toDataURL());
-  if (canvasHistory.length > 30) canvasHistory.shift(); 
-}
-
-// ============================================================================
-// TOOL CONTROL SYSTEM
-// ============================================================================
-function setActiveTool(tool, activeBtn) {
-  bakeFloatingObjects(); 
-  currentTool = tool;
-  
-  document.querySelectorAll('.tool-btn').forEach(btn => {
-    if (btn.id !== 'undoBtn') btn.classList.remove('active');
-  });
-  if (activeBtn && activeBtn.id !== 'undoBtn') activeBtn.classList.add('active');
-  
-  if (!canvas || !ctx) return;
-  
-  if (currentTool === 'rubber') {
-    ctx.globalCompositeOperation = 'destination-out';
-    canvas.style.cursor = 'cell';
-  } else {
-    ctx.globalCompositeOperation = 'source-over';
-    if (currentTool === 'text') { canvas.style.cursor = 'text'; }
-    else if (currentTool === 'img') { canvas.style.cursor = 'pointer'; }
-    else { canvas.style.cursor = 'crosshair'; }
-  }
-}
-
-// ============================================================================
-// INTERACTIVE LESSON COUNTDOWN TIMER ENGINE
-// ============================================================================
-function toggleLessonTimer() {
-  if (isTimerRunning) {
-    // Pause state execution
-    clearInterval(timerInterval);
-    isTimerRunning = false;
-    timerToggleBtn.textContent = "Start";
-    timerToggleBtn.style.background = "#2ecc71"; // Switch back to green
-    enableTimerInputs(true);
-  } else {
-    // Start countdown execution
-    let minutes = parseInt(timerMinInput.value) || 0;
-    let seconds = parseInt(timerSecInput.value) || 0;
-    let totalSeconds = (minutes * 60) + seconds;
-
-    if (totalSeconds <= 0) {
-      alert("Please enter a time greater than 00:00!");
-      return;
-    }
-
-    isTimerRunning = true;
-    timerToggleBtn.textContent = "Pause";
-    timerToggleBtn.style.background = "#e74c3c"; // Switch to red
-    enableTimerInputs(false); // Lock inputs while ticking
-
-    // Set initial active green color right at launch
-    timerMinInput.style.color = "#2ecc71";
-    timerSecInput.style.color = "#2ecc71";
-
-    timerInterval = setInterval(() => {
-      totalSeconds--;
-
-      if (totalSeconds <= 0) {
-        clearInterval(timerInterval);
-        isTimerRunning = false;
-        timerMinInput.value = "00";
-        timerSecInput.value = "00";
-        
-        // Reset colors back to standard white on completion
-        timerMinInput.style.color = "#ffffff";
-        timerSecInput.style.color = "#ffffff";
-        
-        timerToggleBtn.textContent = "Start";
-        timerToggleBtn.style.background = "#2ecc71";
-        enableTimerInputs(true);
-        
-        triggerTimerCompletionAlert();
-      } else {
-        const m = Math.floor(totalSeconds / 60);
-        const s = totalSeconds % 60;
-        timerMinInput.value = m.toString().padStart(2, '0');
-        timerSecInput.value = s.toString().padStart(2, '0');
-
-        // === DYNAMIC COLOR CODING ===
-        if (totalSeconds <= 30) {
-          // Final 30 seconds: Change text color to warning Red
-          timerMinInput.style.color = "#e74c3c";
-          timerSecInput.style.color = "#e74c3c";
-        } else {
-          // Safe zone: Keep text color active Green
-          timerMinInput.style.color = "#2ecc71";
-          timerSecInput.style.color = "#2ecc71";
-        }
-      }
-    }, 1000);
-  }
-}
-
-function enableTimerInputs(enable) {
-  if (!timerMinInput || !timerSecInput) return;
-  timerMinInput.disabled = !enable;
-  timerSecInput.disabled = !enable;
-  // Visual tracking state styling
-  timerMinInput.style.background = enable ? "#34495e" : "#2c3e50";
-  timerSecInput.style.background = enable ? "#34495e" : "#2c3e50";
-}
-
-function triggerTimerCompletionAlert() {
-  // Simple visual flash effect on the input boxes to grab teacher attention
-  let flashCount = 0;
-  const alertInterval = setInterval(() => {
-    const isEven = flashCount % 2 === 0;
-    timerMinInput.style.background = isEven ? "#e74c3c" : "#34495e";
-    timerSecInput.style.background = isEven ? "#e74c3c" : "#34495e";
-    flashCount++;
-    if (flashCount >= 6) {
-      clearInterval(alertInterval);
-      timerMinInput.style.background = "#34495e";
-      timerSecInput.style.background = "#34495e";
-    }
-  }, 250);
-
-  // Optional: Play a short, soft system beep if you want audio notification
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.3);
-  } catch (e) {
-    console.log("Audio API not supported or awaiting user interaction gesture.");
-  }
-}
-
-// ============================================================================
-// POLLING LOGIC HUB - WITH CORRECT ANSWER TRACKING
-// ============================================================================
-function togglePollPanel() {
-  if (!pollPanel) return;
-  if (pollPanel.style.display === 'none' || !pollPanel.style.display) {
-    pollPanel.style.display = 'block';
-    pollModeBtn.classList.add('active');
-  } else {
-    pollPanel.style.display = 'none';
-    pollModeBtn.classList.remove('active');
-  }
-}
-
-function launchPoll() {
-  const questionText = pollQuestionInput.value.trim() || "Quick Poll";
-  const optionInputs = document.querySelectorAll('.poll-opt');
-  const validOptions = [];
-  let detectedCorrectIndex = -1;
-
-  // Find which option the teacher marked as correct
-  const correctRadios = document.querySelectorAll('.poll-correct-radio');
-
-  optionInputs.forEach((input, idx) => {
-    if (input.value.trim() !== "") {
-      validOptions.push(input.value.trim());
-      // If this radio element is checked, note its current valid array index position
-      if (correctRadios[idx] && correctRadios[idx].checked) {
-        detectedCorrectIndex = validOptions.length - 1;
-      }
-    }
-  });
-
-  if (validOptions.length < 2) {
-    alert("Please provide at least two poll options!");
-    return;
-  }
-
-  // Build active state tracking with accuracy profiles
-  pollActive = true;
-  activePollData = {
-    question: questionText,
-    options: validOptions,
-    correctAnswerIndex: detectedCorrectIndex, // Saved safely! (-1 if none selected)
-    votes: {} // Stores studentName: selectedOptionIndex
-  };
-
-  // Switch UI windows inside panel
-  pollSetup.style.display = 'none';
-  pollLiveResults.style.display = 'block';
-  livePollQuestion.textContent = questionText;
-
-  renderLivePollBars();
-
-  // Send broadcast out to current student client channels
-  if (channel) {
-    channel.send({
-      type: 'broadcast',
-      event: 'start-poll',
-      payload: { question: questionText, options: validOptions }
-    });
-  }
-}
-
-function handleIncomingVote(payload) {
-  if (!pollActive) return;
-  activePollData.votes[payload.studentName] = payload.optionIndex;
-  renderLivePollBars();
-}
-
-function renderLivePollBars() {
-  if (!resultsBarsContainer) return;
-  resultsBarsContainer.innerHTML = '';
-
-  const totalVotes = Object.keys(activePollData.votes).length;
-  
-  const tally = {};
-  activePollData.options.forEach((_, idx) => tally[idx] = 0);
-  Object.values(activePollData.votes).forEach(voteIdx => {
-    if (tally[voteIdx] !== undefined) tally[voteIdx]++;
-  });
-
-  activePollData.options.forEach((optionText, idx) => {
-    const count = tally[idx];
-    const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-
-    const row = document.createElement('div');
-    row.style.cssText = "display: flex; align-items: center; gap: 10px; font-family: sans-serif; margin-bottom: 6px;";
-
-    const label = document.createElement('div');
-    label.style.width = '140px';
-    label.style.fontWeight = 'bold';
-    label.style.fontSize = '13px';
-    
-    // Visually flag the correct answer on the teacher's live dashboard view
-    if (activePollData.correctAnswerIndex === idx) {
-      label.innerHTML = `✅ <span style="color: #2ecc71;">${optionText}</span>`;
-    } else {
-      label.textContent = optionText;
-    }
-
-    const barTrack = document.createElement('div');
-    barTrack.style.cssText = "flex-grow: 1; background: #e1e1eb; height: 20px; border-radius: 4px; overflow: hidden; position: relative;";
-
-    const barFill = document.createElement('div');
-    // Color code the bar chart fill: Green if it's the correct option, charcoal gray if standard
-    const barColor = (activePollData.correctAnswerIndex === idx) ? '#2ecc71' : '#4a4a68';
-    barFill.style.cssText = `background: ${barColor}; width: ${percent}%; height: 100%; transition: width 0.3s ease;`;
-
-    const stats = document.createElement('div');
-    stats.style.width = '85px';
-    stats.style.fontSize = '13px';
-    stats.style.textAlign = 'right';
-    stats.textContent = `${count} vote(s) (${percent}%)`;
-
-    barTrack.appendChild(barFill);
-    row.appendChild(label);
-    row.appendChild(barTrack);
-    row.appendChild(stats);
-    resultsBarsContainer.appendChild(row);
-  });
-}
-
-function closeAndSavePoll() {
-  pollActive = false;
-  savedPollsHistory.push(JSON.parse(JSON.stringify(activePollData)));
-
-  pollSetup.style.display = 'block';
-  pollLiveResults.style.display = 'none';
-  pollQuestionInput.value = '';
-  document.querySelectorAll('.poll-opt').forEach(i => i.value = '');
-
-  if (channel) {
-    channel.send({ type: 'broadcast', event: 'close-poll' });
-  }
-  alert("Poll results saved securely with correct criteria metrics!");
-}
+  // Bind Quiz Setup Logic Engine Elements inside Main Setup Initialization
+  setupMyQuizButtons();
+});
 
 // ============================================================================
 // EVENT LISTENERS WIRING SETUP
@@ -651,7 +226,7 @@ function setupEventListeners() {
 
   if (undoBtn) undoBtn.addEventListener('click', handleUndoAction);
 
- // Bind Lesson Timer Engine DOM Elements
+  // Bind Lesson Timer Engine DOM Elements
   timerMinInput = document.getElementById('timerMin');
   timerSecInput = document.getElementById('timerSec');
   timerToggleBtn = document.getElementById('timerToggleBtn');
@@ -660,7 +235,6 @@ function setupEventListeners() {
     timerToggleBtn.addEventListener('click', toggleLessonTimer);
   }
 
-  // Auto-format helper loops: pads single digits with a zero when clicking away (e.g., '5' becomes '05')
   [timerMinInput, timerSecInput].forEach(input => {
     if (input) {
       input.addEventListener('blur', () => {
@@ -734,6 +308,37 @@ function setupEventListeners() {
 }
 
 // ============================================================================
+// WHITEBOARD UTILITY CORE
+// ============================================================================
+function pushToHistory() {
+  if (!canvas) return;
+  canvasHistory.push(canvas.toDataURL());
+  if (canvasHistory.length > 30) canvasHistory.shift(); 
+}
+
+function setActiveTool(tool, activeBtn) {
+  bakeFloatingObjects(); 
+  currentTool = tool;
+  
+  document.querySelectorAll('.tool-btn').forEach(btn => {
+    if (btn.id !== 'undoBtn') btn.classList.remove('active');
+  });
+  if (activeBtn && activeBtn.id !== 'undoBtn') activeBtn.classList.add('active');
+  
+  if (!canvas || !ctx) return;
+  
+  if (currentTool === 'rubber') {
+    ctx.globalCompositeOperation = 'destination-out';
+    canvas.style.cursor = 'cell';
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    if (currentTool === 'text') { canvas.style.cursor = 'text'; }
+    else if (currentTool === 'img') { canvas.style.cursor = 'pointer'; }
+    else { canvas.style.cursor = 'crosshair'; }
+  }
+}
+
+// ============================================================================
 // DRAWING ENGINE MECHANICS
 // ============================================================================
 function getCanvasCoordinates(e) {
@@ -745,6 +350,107 @@ function getCanvasCoordinates(e) {
     clientX: e.clientX,
     clientY: e.clientY
   };
+}
+
+// ============================================================================
+// INTERACTIVE LESSON COUNTDOWN TIMER ENGINE
+// ============================================================================
+function toggleLessonTimer() {
+  if (isTimerRunning) {
+    clearInterval(timerInterval);
+    isTimerRunning = false;
+    timerToggleBtn.textContent = "Start";
+    timerToggleBtn.style.background = "#2ecc71"; 
+    enableTimerInputs(true);
+  } else {
+    let minutes = parseInt(timerMinInput.value) || 0;
+    let seconds = parseInt(timerSecInput.value) || 0;
+    let totalSeconds = (minutes * 60) + seconds;
+
+    if (totalSeconds <= 0) {
+      alert("Please enter a time greater than 00:00!");
+      return;
+    }
+
+    isTimerRunning = true;
+    timerToggleBtn.textContent = "Pause";
+    timerToggleBtn.style.background = "#e74c3c"; 
+    enableTimerInputs(false); 
+
+    timerMinInput.style.color = "#2ecc71";
+    timerSecInput.style.color = "#2ecc71";
+
+    timerInterval = setInterval(() => {
+      totalSeconds--;
+
+      if (totalSeconds <= 0) {
+        clearInterval(timerInterval);
+        isTimerRunning = false;
+        timerMinInput.value = "00";
+        timerSecInput.value = "00";
+        
+        timerMinInput.style.color = "#ffffff";
+        timerSecInput.style.color = "#ffffff";
+        
+        timerToggleBtn.textContent = "Start";
+        timerToggleBtn.style.background = "#2ecc71";
+        enableTimerInputs(true);
+        
+        triggerTimerCompletionAlert();
+      } else {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        timerMinInput.value = m.toString().padStart(2, '0');
+        timerSecInput.value = s.toString().padStart(2, '0');
+
+        if (totalSeconds <= 30) {
+          timerMinInput.style.color = "#e74c3c";
+          timerSecInput.style.color = "#e74c3c";
+        } else {
+          timerMinInput.style.color = "#2ecc71";
+          timerSecInput.style.color = "#2ecc71";
+        }
+      }
+    }, 1000);
+  }
+}
+
+function enableTimerInputs(enable) {
+  if (!timerMinInput || !timerSecInput) return;
+  timerMinInput.disabled = !enable;
+  timerSecInput.disabled = !enable;
+  timerMinInput.style.background = enable ? "#34495e" : "#2c3e50";
+  timerSecInput.style.background = enable ? "#34495e" : "#2c3e50";
+}
+
+function triggerTimerCompletionAlert() {
+  let flashCount = 0;
+  const alertInterval = setInterval(() => {
+    const isEven = flashCount % 2 === 0;
+    timerMinInput.style.background = isEven ? "#e74c3c" : "#34495e";
+    timerSecInput.style.background = isEven ? "#e74c3c" : "#34495e";
+    flashCount++;
+    if (flashCount >= 6) {
+      clearInterval(alertInterval);
+      timerMinInput.style.background = "#34495e";
+      timerSecInput.style.background = "#34495e";
+    }
+  }, 250);
+
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); 
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.3);
+  } catch (e) {
+    console.log("Audio API connection footprint pending user gesture interaction.");
+  }
 }
 
 function draw(e) {
@@ -975,14 +681,142 @@ function handleUndoAction() {
 }
 
 // ============================================================================
-// LIVE STUDENT BOARD DISTRIBUTION SYSTEM - RESTORED TO ORIGINAL HTML LAYOUT
+// POLLING LOGIC HUB - WITH CORRECT ANSWER TRACKING
 // ============================================================================
-function handleIncomingStudentAnswer(studentData) {
-  // Extract the pupil name safely
-  const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
-  const safeNameId = pupilName.replace(/\s+/g, '-');
+function togglePollPanel() {
+  if (!pollPanel) return;
+  if (pollPanel.style.display === 'none' || !pollPanel.style.display) {
+    pollPanel.style.display = 'block';
+    pollModeBtn.classList.add('active');
+  } else {
+    pollPanel.style.display = 'none';
+    pollModeBtn.classList.remove('active');
+  }
+}
+
+function launchPoll() {
+  const questionText = pollQuestionInput.value.trim() || "Quick Poll";
+  const optionInputs = document.querySelectorAll('.poll-opt');
+  const validOptions = [];
+  let detectedCorrectIndex = -1;
+
+  const correctRadios = document.querySelectorAll('.poll-correct-radio');
+
+  optionInputs.forEach((input, idx) => {
+    if (input.value.trim() !== "") {
+      validOptions.push(input.value.trim());
+      if (correctRadios[idx] && correctRadios[idx].checked) {
+        detectedCorrectIndex = validOptions.length - 1;
+      }
+    }
+  });
+
+  if (validOptions.length < 2) {
+    alert("Please provide at least two poll options!");
+    return;
+  }
+
+  pollActive = true;
+  activePollData = {
+    question: questionText,
+    options: validOptions,
+    correctAnswerIndex: detectedCorrectIndex, 
+    votes: {} 
+  };
+
+  pollSetup.style.display = 'none';
+  pollLiveResults.style.display = 'block';
+  livePollQuestion.textContent = questionText;
+
+  renderLivePollBars();
+
+  if (channel) {
+    channel.send({
+      type: 'broadcast',
+      event: 'start-poll',
+      payload: { question: questionText, options: validOptions }
+    });
+  }
+}
+
+function handleIncomingVote(payload) {
+  if (!pollActive) return;
+  activePollData.votes[payload.studentName] = payload.optionIndex;
+  renderLivePollBars();
+}
+
+function renderLivePollBars() {
+  if (!resultsBarsContainer) return;
+  resultsBarsContainer.innerHTML = '';
+
+  const totalVotes = Object.keys(activePollData.votes).length;
   
-  // Track submission history safely for slide switches
+  const tally = {};
+  activePollData.options.forEach((_, idx) => tally[idx] = 0);
+  Object.values(activePollData.votes).forEach(voteIdx => {
+    if (tally[voteIdx] !== undefined) tally[voteIdx]++;
+  });
+
+  activePollData.options.forEach((optionText, idx) => {
+    const count = tally[idx];
+    const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+
+    const row = document.createElement('div');
+    row.style.cssText = "display: flex; align-items: center; gap: 10px; font-family: sans-serif; margin-bottom: 6px;";
+
+    const label = document.createElement('div');
+    label.style.width = '140px';
+    label.style.fontWeight = 'bold';
+    label.style.fontSize = '13px';
+    
+    if (activePollData.correctAnswerIndex === idx) {
+      label.innerHTML = `✅ <span style="color: #2ecc71;">${optionText}</span>`;
+    } else {
+      label.textContent = optionText;
+    }
+
+    const barTrack = document.createElement('div');
+    barTrack.style.cssText = "flex-grow: 1; background: #e1e1eb; height: 20px; border-radius: 4px; overflow: hidden; position: relative;";
+
+    const barFill = document.createElement('div');
+    const barColor = (activePollData.correctAnswerIndex === idx) ? '#2ecc71' : '#4a4a68';
+    barFill.style.cssText = `background: ${barColor}; width: ${percent}%; height: 100%; transition: width 0.3s ease;`;
+
+    const stats = document.createElement('div');
+    stats.style.width = '85px';
+    stats.style.fontSize = '13px';
+    stats.style.textAlign = 'right';
+    stats.textContent = `${count} vote(s) (${percent}%)`;
+
+    barTrack.appendChild(barFill);
+    row.appendChild(label);
+    row.appendChild(barTrack);
+    row.appendChild(stats);
+    resultsBarsContainer.appendChild(row);
+  });
+}
+
+function closeAndSavePoll() {
+  pollActive = false;
+  savedPollsHistory.push(JSON.parse(JSON.stringify(activePollData)));
+
+  pollSetup.style.display = 'block';
+  pollLiveResults.style.display = 'none';
+  pollQuestionInput.value = '';
+  document.querySelectorAll('.poll-opt').forEach(i => i.value = '');
+
+  if (channel) {
+    channel.send({ type: 'broadcast', event: 'close-poll' });
+  }
+  alert("Poll results saved securely with correct criteria metrics!");
+}
+
+// ============================================================================
+// LIVE STUDENT BOARD DISTRIBUTION SYSTEM - UNIVERSAL DOM CONTROLLER
+// ============================================================================
+function handleIncomingStudentBoard(studentData) {
+  const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
+  
   if (typeof studentSubmissionsHistory !== 'undefined' && currentBoardIndex !== undefined) {
     if (!studentSubmissionsHistory[currentBoardIndex]) {
       studentSubmissionsHistory[currentBoardIndex] = {};
@@ -990,196 +824,170 @@ function handleIncomingStudentAnswer(studentData) {
     studentSubmissionsHistory[currentBoardIndex][pupilName] = studentData.boardImage;
   }
 
-  // 1. Look to see if this student already has an active image element somewhere
+  renderStudentThumbnailDOM({ name: pupilName, boardImage: studentData.boardImage });
+}
+
+function renderStudentThumbnailDOM(studentData) {
+  const pupilName = studentData.name;
+  const safeNameId = pupilName.replace(/\s+/g, '-');
+  
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
-  let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
-
-  if (!liveImg) {
-    // 2. Find all empty slots, explicitly starting with the container directly next to "See All"
-    const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
-    let openSlots = [];
-
-    if (seeAllBtn && seeAllBtn.parentElement) {
-      // Collect the adjacent sibling boxes right next to the button first
-      openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
-                       .filter(box => box.children.length === 0 && box !== seeAllBtn);
-    }
-
-    // Fallback: collect any other empty dashboard boxes if the immediate layout is full
-    if (openSlots.length === 0) {
-      openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div'))
-                       .filter(box => box.children.length === 0 && box.offsetWidth > 50);
-    }
-
-    const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
-
-    if (bestSlot) {
-      bestSlot.style.position = "relative";
-      bestSlot.style.display = "block";
-      bestSlot.style.overflow = "hidden"; // Clips the banner inside the box boundaries
-      bestSlot.style.cursor = "pointer";
-      bestSlot.style.border = "2px solid #dcdce6";
-      bestSlot.style.backgroundColor = "#ffffff";
-
-      // 3. Create the inner thumbnail image
-      liveImg = document.createElement('img');
-      liveImg.id = `thumb-img-${safeNameId}`;
-      liveImg.className = "student-thumb-src";
-      liveImg.style.width = "100%";
-      liveImg.style.height = "100%";
-      liveImg.style.objectFit = "contain";
-      liveImg.style.display = "block";
-
-      // 4. Classic dark grey banner strip with white text
-      nameLabel = document.createElement('div');
-      nameLabel.id = `thumb-name-${safeNameId}`;
-      nameLabel.textContent = pupilName;
-      nameLabel.style.width = "100%";
-      nameLabel.style.backgroundColor = "#4c4c5e"; 
-      nameLabel.style.color = "#ffffff"; 
-      nameLabel.style.fontSize = "12px";
-      nameLabel.style.fontWeight = "bold";
-      nameLabel.style.textAlign = "center";
-      nameLabel.style.padding = "4px 0";
-      nameLabel.style.position = "absolute";
-      nameLabel.style.bottom = "0"; 
-      nameLabel.style.left = "0";
-      nameLabel.style.boxSizing = "border-box";
-      nameLabel.style.zIndex = "10"; 
-
-      // Assemble components inside the whiteboard box card layout
-      bestSlot.appendChild(liveImg);
-      bestSlot.appendChild(nameLabel);
-
-      // CLICK PROJECTION ENGINE: Zooms board when clicked
-      bestSlot.addEventListener('click', () => {
-        if (!ctx || !canvas) return;
-        
-        const currentThumb = bestSlot.querySelector('.student-thumb-src');
-        if (!currentThumb || !currentThumb.src) return;
-
-        const zoomImg = new Image();
-        zoomImg.onload = () => {
-          if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
-          if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
-          
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
-          
-          // Show inspection overlay banner if it exists
-          const studentInspectBanner = document.getElementById('studentInspectBanner');
-          if (studentInspectBanner) {
-            const bannerText = document.getElementById('inspectBannerText');
-            if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
-            studentInspectBanner.style.display = "flex";
-          }
-        };
-        zoomImg.src = currentThumb.src;
-      });
-    } else {
-      // Ultimate fallback card generation if grid divs are entirely full or missing
-      console.warn("No pre-existing empty slots found. Appending dynamically next to See All.");
-      if (seeAllBtn && seeAllBtn.parentElement) {
-        const fallbackCard = document.createElement('div');
-        fallbackCard.style.width = "140px";
-        fallbackCard.style.height = "100px";
-        fallbackCard.style.backgroundColor = "#ffffff";
-        fallbackCard.style.border = "2px solid #dcdce6";
-        fallbackCard.style.borderRadius = "8px";
-        fallbackCard.style.cursor = "pointer";
-        fallbackCard.style.position = "relative";
-        fallbackCard.style.overflow = "hidden";
-        
-        const fbImg = document.createElement('img');
-        fbImg.id = `thumb-img-${safeNameId}`;
-        fbImg.className = "student-thumb-src";
-        fbImg.style.width = "100%";
-        fbImg.style.height = "100%";
-        fbImg.style.objectFit = "contain";
-        fallbackCard.appendChild(fbImg);
-        
-        const fbLabel = document.createElement('div');
-        fbLabel.id = `thumb-name-${safeNameId}`;
-        fbLabel.textContent = pupilName;
-        fbLabel.style.width = "100%";
-        fbLabel.style.backgroundColor = "#4c4c5e";
-        fbLabel.style.color = "#ffffff";
-        fbLabel.style.fontSize = "12px";
-        fbLabel.style.fontWeight = "bold";
-        fbLabel.style.textAlign = "center";
-        fbLabel.style.padding = "4px 0";
-        fbLabel.style.position = "absolute";
-        fbLabel.style.bottom = "0";
-        fbLabel.style.left = "0";
-        fallbackCard.appendChild(fbLabel);
-        
-        fallbackCard.addEventListener('click', () => {
-          if (!ctx || !canvas) return;
-          const currentThumb = fallbackCard.querySelector('.student-thumb-src');
-          if (!currentThumb || !currentThumb.src) return;
-
-          const zoomImg = new Image();
-          zoomImg.onload = () => {
-            if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
-            if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
-            
-            const studentInspectBanner = document.getElementById('studentInspectBanner');
-            if (studentInspectBanner) {
-              const bannerText = document.getElementById('inspectBannerText');
-              if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
-              studentInspectBanner.style.display = "flex";
-            }
-          };
-          zoomImg.src = currentThumb.src;
-        });
-
-        seeAllBtn.parentElement.appendChild(fallbackCard);
-        liveImg = fbImg;
-      }
-    }
-  }
-
-  // 5. Update data source image string frame instantly
   if (liveImg) {
     liveImg.src = studentData.boardImage;
+    return;
+  }
+
+  const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
+  let openSlots = [];
+
+  if (seeAllBtn && seeAllBtn.parentElement) {
+    openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
+                     .filter(box => !box.querySelector('.student-thumb-src') && box !== seeAllBtn && box.offsetWidth > 30);
+  }
+
+  if (openSlots.length === 0) {
+    openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div, .mini-board'))
+                     .filter(box => !box.querySelector('.student-thumb-src') && box.offsetWidth > 30);
+  }
+
+  const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
+
+  if (bestSlot) {
+    bestSlot.style.position = "relative";
+    bestSlot.style.display = "block";
+    bestSlot.style.overflow = "hidden";
+    bestSlot.style.cursor = "pointer";
+    bestSlot.style.border = "2px solid #dcdce6";
+    bestSlot.style.backgroundColor = "#ffffff";
+    bestSlot.className += " active-student-card";
+
+    liveImg = document.createElement('img');
+    liveImg.id = `thumb-img-${safeNameId}`;
+    liveImg.className = "student-thumb-src";
+    liveImg.style.width = "100%";
+    liveImg.style.height = "100%";
+    liveImg.style.objectFit = "contain";
+    liveImg.style.display = "block";
+    liveImg.src = studentData.boardImage;
+
+    const nameLabel = document.createElement('div');
+    nameLabel.id = `thumb-name-${safeNameId}`;
+    nameLabel.textContent = pupilName;
+    nameLabel.style.width = "100%";
+    nameLabel.style.backgroundColor = "#4c4c5e"; 
+    nameLabel.style.color = "#ffffff"; 
+    nameLabel.style.fontSize = "12px";
+    nameLabel.style.fontWeight = "bold";
+    nameLabel.style.textAlign = "center";
+    nameLabel.style.padding = "4px 0";
+    nameLabel.style.position = "absolute";
+    nameLabel.style.bottom = "0"; 
+    nameLabel.style.left = "0";
+    nameLabel.style.boxSizing = "border-box";
+    nameLabel.style.zIndex = "10"; 
+
+    bestSlot.innerHTML = '';
+    bestSlot.appendChild(liveImg);
+    bestSlot.appendChild(nameLabel);
+
+    bestSlot.addEventListener('click', () => {
+      zoomStudentWorkspaceToCanvas(liveImg.src, pupilName);
+    });
+  } else {
+    if (seeAllBtn && seeAllBtn.parentElement) {
+      const fallbackCard = document.createElement('div');
+      fallbackCard.className = "active-student-card dynamic-spawn-card";
+      fallbackCard.style.width = "130px";
+      fallbackCard.style.height = "95px";
+      fallbackCard.style.backgroundColor = "#ffffff";
+      fallbackCard.style.border = "2px solid #dcdce6";
+      fallbackCard.style.borderRadius = "8px";
+      fallbackCard.style.cursor = "pointer";
+      fallbackCard.style.position = "relative";
+      fallbackCard.style.overflow = "hidden";
+      fallbackCard.style.display = "inline-block";
+      fallbackCard.style.margin = "0 4px";
+      fallbackCard.style.verticalAlign = "top";
+      
+      const fbImg = document.createElement('img');
+      fbImg.id = `thumb-img-${safeNameId}`;
+      fbImg.className = "student-thumb-src";
+      fbImg.style.width = "100%";
+      fbImg.style.height = "100%";
+      fbImg.style.objectFit = "contain";
+      fbImg.src = studentData.boardImage;
+      fallbackCard.appendChild(fbImg);
+      
+      const fbLabel = document.createElement('div');
+      fbLabel.id = `thumb-name-${safeNameId}`;
+      fbLabel.textContent = pupilName;
+      fbLabel.style.width = "100%";
+      fbLabel.style.backgroundColor = "#4c4c5e";
+      fbLabel.style.color = "#ffffff";
+      fbLabel.style.fontSize = "12px";
+      fbLabel.style.fontWeight = "bold";
+      fbLabel.style.textAlign = "center";
+      fbLabel.style.padding = "4px 0";
+      fbLabel.style.position = "absolute";
+      fbLabel.style.bottom = "0";
+      fbLabel.style.left = "0";
+      fallbackCard.appendChild(fbLabel);
+      
+      fallbackCard.addEventListener('click', () => {
+        zoomStudentWorkspaceToCanvas(fbImg.src, pupilName);
+      });
+
+      seeAllBtn.parentElement.appendChild(fallbackCard);
+    }
   }
 }
 
-// Dedicated function to bring back the teacher's workspace seamlessly
+function zoomStudentWorkspaceToCanvas(imgSrc, pupilName) {
+  if (!ctx || !canvas) return;
+  const zoomImg = new Image();
+  zoomImg.onload = () => {
+    if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
+    if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+    
+    if (studentInspectBanner) {
+      const bannerText = document.getElementById('inspectBannerText');
+      if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
+      studentInspectBanner.style.display = "flex";
+    }
+  };
+  zoomImg.src = imgSrc;
+}
+
 function revertToTeacherPresentationView() {
   if (!ctx || !canvas) return;
 
-  // Clear student work from drawing plane
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Reload teacher's slide content directly from memory maps array
   if (boardsData[currentBoardIndex]) {
     const originalTeacherImg = new Image();
     originalTeacherImg.src = boardsData[currentBoardIndex];
     originalTeacherImg.onload = () => {
       ctx.drawImage(originalTeacherImg, 0, 0);
-      // Reset local undo trace history arrays specifically back to standard footprint state
       canvasHistory = [canvas.toDataURL()];
     };
   }
 
-  // Hide the notification banner
   if (studentInspectBanner) {
     studentInspectBanner.style.display = "none";
   }
 }
-  if (liveImg) { liveImg.src = studentData.boardImage; }
-
 
 function clearStudentThumbnailsDOM() {
-  document.querySelectorAll('.mini-board').forEach(slot => { slot.innerHTML = ''; });
-  const allMiniBoards = document.querySelectorAll('.mini-board');
-  if (allMiniBoards.length > 4) {
-    for (let i = 4; i < allMiniBoards.length; i++) { allMiniBoards[i].remove(); }
-  }
+  document.querySelectorAll('.mini-board, .active-student-card').forEach(slot => { 
+    slot.innerHTML = ''; 
+    slot.style.position = "";
+    slot.style.backgroundImage = "";
+  });
+  document.querySelectorAll('.dynamic-spawn-card').forEach(card => card.remove());
 }
 
 // ============================================================================
@@ -1189,7 +997,6 @@ function updatePaginationUI() {
   if (pageText) pageText.textContent = `Board ${currentBoardIndex + 1} of ${Math.max(boardsData.length, 1)}`;
 }
 
-// Fixed function boundary layout map
 function saveCurrentBoardState() { 
   if (!canvas) return;
   boardsData[currentBoardIndex] = canvas.toDataURL(); 
@@ -1239,7 +1046,6 @@ if (exportBtn) {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
     let isFirstPage = true;
 
-    // PAGE GENERATOR TYPE 1: Whiteboard Lesson Slides & Pupil Submissions
     for (let i = 0; i < boardsData.length; i++) {
       if (!boardsData[i]) continue;
 
@@ -1302,13 +1108,11 @@ if (exportBtn) {
       }
     }
 
-    // PAGE GENERATOR TYPE 2: Dynamic Poll Analytics Data Sheets (with Answer Criteria Mapping)
     if (savedPollsHistory.length > 0) {
       savedPollsHistory.forEach((poll, index) => {
         pdf.addPage([1100, 520], 'landscape');
 
-        // Draw Header Track
-        pdf.setFillColor(46, 204, 113); // Clean Green theme for poll sheets
+        pdf.setFillColor(46, 204, 113); 
         pdf.rect(0, 0, 1100, 45, 'F');
 
         pdf.setTextColor(255, 255, 255);
@@ -1316,13 +1120,11 @@ if (exportBtn) {
         pdf.setFontSize(16);
         pdf.text(`SESSION REPORT - COMPLETED CLASSROOM POLL #${index + 1}`, 30, 28);
 
-        // Render Main Question Body text
         pdf.setTextColor(40, 40, 60);
         pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(18);
         pdf.text(`Question Asked: ${poll.question}`, 45, 85);
 
-        // Calculate analytical tally properties
         const voterNames = Object.keys(poll.votes);
         const totalVotes = voterNames.length;
         const tally = {};
@@ -1333,7 +1135,6 @@ if (exportBtn) {
           if(tally[voteIdx] !== undefined) tally[voteIdx]++; 
         });
 
-        // Count how many students matched the correct criteria benchmark choice index
         if (poll.correctAnswerIndex !== undefined && poll.correctAnswerIndex !== -1) {
           voterNames.forEach(name => {
             if (poll.votes[name] === poll.correctAnswerIndex) {
@@ -1354,14 +1155,12 @@ if (exportBtn) {
         }
         pdf.text(statsLabelString, 45, 105);
 
-        // Draw visual analytical bars inside PDF engine layout 
         let currentYOffset = 135;
         poll.options.forEach((optionText, idx) => {
           const count = tally[idx];
           const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
           const isThisOptionCorrect = (poll.correctAnswerIndex === idx);
 
-          // Append correct marker string to options labels inside PDF document
           const finalOptionLabel = isThisOptionCorrect ? `* ${optionText} [CORRECT]` : optionText;
 
           pdf.setTextColor(isThisOptionCorrect ? 39 : 50, isThisOptionCorrect ? 174 : 50, isThisOptionCorrect ? 96 : 60);
@@ -1369,17 +1168,14 @@ if (exportBtn) {
           pdf.setFontSize(13);
           pdf.text(finalOptionLabel, 50, currentYOffset + 14);
 
-          // Background track
           pdf.setFillColor(230, 230, 238);
           pdf.rect(250, currentYOffset, 550, 20, 'F');
 
-          // Progress bar fill (Green if correct choice, default navy slate if incorrect tracking choice)
           if (percent > 0) {
             pdf.setFillColor(isThisOptionCorrect ? 46 : 74, isThisOptionCorrect ? 204 : 74, isThisOptionCorrect ? 113 : 104);
             pdf.rect(250, currentYOffset, (550 * (percent / 100)), 20, 'F');
           }
 
-          // Numerical labels beside bounds
           pdf.setTextColor(70, 70, 90);
           pdf.setFont("Helvetica", "bold");
           pdf.setFontSize(12);
@@ -1388,9 +1184,6 @@ if (exportBtn) {
           currentYOffset += 32; 
         });
 
-        // --------------------------------------------------------------------
-        // DETAILED PUPIL BREAKDOWN MATRIX (WITH HIGH-CONTRAST ASSESSMENT COLORS)
-        // --------------------------------------------------------------------
         currentYOffset += 15; 
         
         pdf.setTextColor(40, 40, 60);
@@ -1399,7 +1192,6 @@ if (exportBtn) {
         pdf.text("Individual Pupil Response Grid", 45, currentYOffset);
         currentYOffset += 12;
 
-        // Table Header row background line
         pdf.setFillColor(74, 74, 104);
         pdf.rect(45, currentYOffset, 1010, 24, 'F');
 
@@ -1421,7 +1213,6 @@ if (exportBtn) {
           pdf.text("No active student submissions recorded for this poll segment.", 60, currentYOffset + 16);
         } else {
           voterNames.forEach((studentName, sIdx) => {
-            // Check canvas page boundaries overflow limit
             if (currentYOffset > 480) {
               pdf.addPage([1100, 520], 'landscape');
               
@@ -1448,7 +1239,6 @@ if (exportBtn) {
             const isCorrect = (poll.correctAnswerIndex !== -1 && chosenIndex === poll.correctAnswerIndex);
             const hasNoCorrectCriteriaSet = (poll.correctAnswerIndex === -1);
 
-            // Row background mapping: Green if correct, light Red if incorrect, standard zebra striping if no key set
             if (hasNoCorrectCriteriaSet) {
               if (sIdx % 2 === 0) {
                 pdf.setFillColor(245, 245, 250);
@@ -1456,18 +1246,16 @@ if (exportBtn) {
               }
             } else {
               if (isCorrect) {
-                pdf.setFillColor(233, 247, 239); // Clean tint soft translucent green block
+                pdf.setFillColor(233, 247, 239); 
               } else {
-                pdf.setFillColor(253, 237, 237); // Clean tint soft translucent red block
+                pdf.setFillColor(253, 237, 237); 
               }
               pdf.rect(45, currentYOffset, 1010, 22, 'F');
             }
             
-            // Draw standard matrix gridline rules
             pdf.setDrawColor(225, 225, 235);
             pdf.rect(45, currentYOffset, 1010, 22, 'S');
 
-            // Print student row values 
             pdf.setTextColor(50, 50, 60);
             pdf.setFont("Helvetica", "bold");
             pdf.setFontSize(11);
@@ -1477,16 +1265,15 @@ if (exportBtn) {
             pdf.setFont("Helvetica", "normal");
             pdf.text(chosenOptionStringText, 350, currentYOffset + 15);
 
-            // Print column evaluation stamps
             if (hasNoCorrectCriteriaSet) {
               pdf.setTextColor(110, 110, 120);
               pdf.text("Ungraded Poll Survey", 850, currentYOffset + 15);
             } else if (isCorrect) {
-              pdf.setTextColor(39, 174, 96); // Vibrant deep green font text
+              pdf.setTextColor(39, 174, 96); 
               pdf.setFont("Helvetica", "bold");
               pdf.text("CORRECT", 850, currentYOffset + 15);
             } else {
-              pdf.setTextColor(192, 57, 43); // Vibrant deep red font text
+              pdf.setTextColor(192, 57, 43); 
               pdf.setFont("Helvetica", "bold");
               pdf.text("INCORRECT", 850, currentYOffset + 15);
             }
@@ -1502,39 +1289,29 @@ if (exportBtn) {
 }
 
 // ============================================================================
-// ============================================================================
-// AUTOMATED QUIZ ENGINE LOGIC (STEP C - INDEPENDENT CORE MODULE)
-// ============================================================================
+// AUTOMATED QUIZ ENGINE LOGIC (Collision-Free Module Stream)
 // ============================================================================
 
-// 1. CHANNELS SUBMISSION BINDING HOOK
-// This listens to student submissions arriving over Supabase
-function handleIncomingStudentAnswer(payload) {
-  // If a quiz isn't currently running on the screen, ignore incoming submissions
+// Centralized handler decoupled from whiteboard streams
+function handleIncomingQuizResponse(payload) {
   if (!quizState.isActive) return;
 
   const studentName = payload.studentName || "Anonymous Pupil";
   const chosenIndex = parseInt(payload.chosenIndex);
 
-  // Lock in the student's response
   quizState.activeSubmissions[studentName] = chosenIndex;
 
-  // Re-draw the bar graphs on your presentation screen with the live values
-  renderLiveQuizBars();
+  if (typeof renderLiveQuizBars === 'function') {
+    renderLiveQuizBars();
+  }
 }
-  // Update the text counter display at the top (e.g., 5 / 3 Pupils
 
-  // ============================================================================
-// STEP-BY-STEP QUIZ SERVICE FUNCTIONS
-// ============================================================================
-
-// This function runs automatically to connect your buttons when the page loads
+// Setup and wire the Quiz interactive panels explicitly
 function setupMyQuizButtons() {
   const addBtn = document.getElementById('addQuestionToBankBtn');
 
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      // 1. Grab the text boxes from your screen
       const qInput = document.getElementById('quizQuestionInput');
       const opt0 = document.getElementById('quizOpt0');
       const opt1 = document.getElementById('quizOpt1');
@@ -1542,13 +1319,11 @@ function setupMyQuizButtons() {
       const opt3 = document.getElementById('quizOpt3');
       const radios = document.getElementsByName('quizCorrectRadio');
 
-      // Safety check: If they didn't type a question, stop them
       if (!qInput || !qInput.value.trim()) {
         alert("Please type a question first before saving!");
         return;
       }
 
-      // 2. Find out which radio dot is clicked as the correct answer
       let correctIdx = 0;
       for (let i = 0; i < radios.length; i++) {
         if (radios[i].checked) {
@@ -1557,7 +1332,6 @@ function setupMyQuizButtons() {
         }
       }
 
-      // 3. Package the typed question neatly
       const newQuestionCard = {
         question: qInput.value.trim(),
         options: [
@@ -1569,27 +1343,30 @@ function setupMyQuizButtons() {
         correctIndex: correctIdx
       };
 
-      // 4. Drop it into our virtual basket!
       quizState.plannedQueue.push(newQuestionCard);
 
-      // 5. Clear out the text boxes on your screen so you can type a new one
       qInput.value = "";
       if (opt0) opt0.value = "";
       if (opt1) opt1.value = "";
       if (opt2) opt2.value = "";
       if (opt3) opt3.value = "";
 
-      // 6. Update the counter badge text on your screen
       const countBadge = document.getElementById('quizBankCountBadge');
       if (countBadge) {
         countBadge.innerText = `${quizState.plannedQueue.length} Questions Saved`;
+      }
+
+      const container = document.getElementById('quizPersistentBankContainer');
+      if (container) {
+        container.innerHTML = quizState.plannedQueue.map((item, idx) => `
+          <div style="background: #34495e; padding: 8px 12px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; color: #fff;">
+            <span><strong>${idx + 1}.</strong> ${item.question}</span>
+            <span style="color: #2ecc71; font-weight: bold; font-size: 11px;">Staged</span>
+          </div>
+        `).join('');
       }
 
       alert("✓ Question added to your session deck successfully!");
     });
   }
 }
-
-// Kickstart the button wire-up immediately
-setupMyQuizButtons();
-
