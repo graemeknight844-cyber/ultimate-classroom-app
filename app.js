@@ -975,81 +975,176 @@ function handleUndoAction() {
 }
 
 // ============================================================================
-// LIVE STUDENT BOARD DISTRIBUTION SYSTEM - WITH INSPECTION TOGGLE HOOKS
+// LIVE STUDENT BOARD DISTRIBUTION SYSTEM - RESTORED TO ORIGINAL HTML LAYOUT
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
-  // We extract the name safely here...
-  const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
-
-  if (!studentSubmissionsHistory[currentBoardIndex]) {
-    studentSubmissionsHistory[currentBoardIndex] = {};
-  }
-  studentSubmissionsHistory[currentBoardIndex][pupilName] = studentData.boardImage;
-  
-  // Notice we only pass ONE argument now so we don't confuse the rest of your app!
-  renderStudentThumbnailDOM(studentData);
-}
-
-function renderStudentThumbnailDOM(studentData) {
-  // We safely extract the name inside this function too, so it never crashes!
+  // Extract the pupil name safely
   const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
   const safeNameId = pupilName.replace(/\s+/g, '-');
   
+  // Track submission history safely for slide switches
+  if (typeof studentSubmissionsHistory !== 'undefined' && currentBoardIndex !== undefined) {
+    if (!studentSubmissionsHistory[currentBoardIndex]) {
+      studentSubmissionsHistory[currentBoardIndex] = {};
+    }
+    studentSubmissionsHistory[currentBoardIndex][pupilName] = studentData.boardImage;
+  }
+
+  // 1. Look to see if this student already has an active image element somewhere
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
+  let nameLabel = document.getElementById(`thumb-name-${safeNameId}`);
 
   if (!liveImg) {
-    const slots = Array.from(document.querySelectorAll('.mini-board'));
-    const emptySlot = slots.find(slot => slot.children.length === 0);
-    
-    let targetTarget = emptySlot;
-    if (!targetTarget) {
-      targetTarget = document.createElement('div');
-      targetTarget.className = 'mini-board';
-      document.querySelector('.pupil-boards').appendChild(targetTarget);
+    // 2. Find all empty slots, explicitly starting with the container directly next to "See All"
+    const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
+    let openSlots = [];
+
+    if (seeAllBtn && seeAllBtn.parentElement) {
+      // Collect the adjacent sibling boxes right next to the button first
+      openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
+                       .filter(box => box.children.length === 0 && box !== seeAllBtn);
     }
 
-    targetTarget.style.position = "relative";
-    targetTarget.style.display = "block";
-    targetTarget.style.overflow = "hidden"; 
-    targetTarget.style.cursor = "pointer";
+    // Fallback: collect any other empty dashboard boxes if the immediate layout is full
+    if (openSlots.length === 0) {
+      openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div'))
+                       .filter(box => box.children.length === 0 && box.offsetWidth > 50);
+    }
 
-    liveImg = document.createElement('img');
-    liveImg.id = `thumb-img-${safeNameId}`;
-    liveImg.style.width = "100%";
-    liveImg.style.height = "100%";
-    liveImg.style.objectFit = "contain";
+    const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
 
-    const nameLabel = document.createElement('div');
-    nameLabel.id = `thumb-name-${safeNameId}`;
-    nameLabel.textContent = pupilName; 
-    nameLabel.style.cssText = "width:100%; background:#4c4c5e; color:#fff; font-size:12px; font-weight:bold; text-align:center; padding:4px 0; position:absolute; bottom:0; left:0; box-sizing:border-box; z-index:10;";
+    if (bestSlot) {
+      bestSlot.style.position = "relative";
+      bestSlot.style.display = "block";
+      bestSlot.style.overflow = "hidden"; // Clips the banner inside the box boundaries
+      bestSlot.style.cursor = "pointer";
+      bestSlot.style.border = "2px solid #dcdce6";
+      bestSlot.style.backgroundColor = "#ffffff";
 
-    targetTarget.appendChild(liveImg);
-    targetTarget.appendChild(nameLabel);
+      // 3. Create the inner thumbnail image
+      liveImg = document.createElement('img');
+      liveImg.id = `thumb-img-${safeNameId}`;
+      liveImg.className = "student-thumb-src";
+      liveImg.style.width = "100%";
+      liveImg.style.height = "100%";
+      liveImg.style.objectFit = "contain";
+      liveImg.style.display = "block";
 
-    targetTarget.addEventListener('click', () => {
-      if (!ctx || !canvas) return;
-      
-      const zoomImg = new Image();
-      zoomImg.onload = () => {
-        if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
-        if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
+      // 4. Classic dark grey banner strip with white text
+      nameLabel = document.createElement('div');
+      nameLabel.id = `thumb-name-${safeNameId}`;
+      nameLabel.textContent = pupilName;
+      nameLabel.style.width = "100%";
+      nameLabel.style.backgroundColor = "#4c4c5e"; 
+      nameLabel.style.color = "#ffffff"; 
+      nameLabel.style.fontSize = "12px";
+      nameLabel.style.fontWeight = "bold";
+      nameLabel.style.textAlign = "center";
+      nameLabel.style.padding = "4px 0";
+      nameLabel.style.position = "absolute";
+      nameLabel.style.bottom = "0"; 
+      nameLabel.style.left = "0";
+      nameLabel.style.boxSizing = "border-box";
+      nameLabel.style.zIndex = "10"; 
+
+      // Assemble components inside the whiteboard box card layout
+      bestSlot.appendChild(liveImg);
+      bestSlot.appendChild(nameLabel);
+
+      // CLICK PROJECTION ENGINE: Zooms board when clicked
+      bestSlot.addEventListener('click', () => {
+        if (!ctx || !canvas) return;
         
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+        const currentThumb = bestSlot.querySelector('.student-thumb-src');
+        if (!currentThumb || !currentThumb.src) return;
+
+        const zoomImg = new Image();
+        zoomImg.onload = () => {
+          if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
+          if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
+          
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+          
+          // Show inspection overlay banner if it exists
+          const studentInspectBanner = document.getElementById('studentInspectBanner');
+          if (studentInspectBanner) {
+            const bannerText = document.getElementById('inspectBannerText');
+            if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
+            studentInspectBanner.style.display = "flex";
+          }
+        };
+        zoomImg.src = currentThumb.src;
+      });
+    } else {
+      // Ultimate fallback card generation if grid divs are entirely full or missing
+      console.warn("No pre-existing empty slots found. Appending dynamically next to See All.");
+      if (seeAllBtn && seeAllBtn.parentElement) {
+        const fallbackCard = document.createElement('div');
+        fallbackCard.style.width = "140px";
+        fallbackCard.style.height = "100px";
+        fallbackCard.style.backgroundColor = "#ffffff";
+        fallbackCard.style.border = "2px solid #dcdce6";
+        fallbackCard.style.borderRadius = "8px";
+        fallbackCard.style.cursor = "pointer";
+        fallbackCard.style.position = "relative";
+        fallbackCard.style.overflow = "hidden";
         
-        const studentInspectBanner = document.getElementById('studentInspectBanner');
-        if (studentInspectBanner) {
-          const bannerText = document.getElementById('inspectBannerText');
-          if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
-          studentInspectBanner.style.display = "flex";
-        }
-      };
-      zoomImg.src = liveImg.src;
-    });
+        const fbImg = document.createElement('img');
+        fbImg.id = `thumb-img-${safeNameId}`;
+        fbImg.className = "student-thumb-src";
+        fbImg.style.width = "100%";
+        fbImg.style.height = "100%";
+        fbImg.style.objectFit = "contain";
+        fallbackCard.appendChild(fbImg);
+        
+        const fbLabel = document.createElement('div');
+        fbLabel.id = `thumb-name-${safeNameId}`;
+        fbLabel.textContent = pupilName;
+        fbLabel.style.width = "100%";
+        fbLabel.style.backgroundColor = "#4c4c5e";
+        fbLabel.style.color = "#ffffff";
+        fbLabel.style.fontSize = "12px";
+        fbLabel.style.fontWeight = "bold";
+        fbLabel.style.textAlign = "center";
+        fbLabel.style.padding = "4px 0";
+        fbLabel.style.position = "absolute";
+        fbLabel.style.bottom = "0";
+        fbLabel.style.left = "0";
+        fallbackCard.appendChild(fbLabel);
+        
+        fallbackCard.addEventListener('click', () => {
+          if (!ctx || !canvas) return;
+          const currentThumb = fallbackCard.querySelector('.student-thumb-src');
+          if (!currentThumb || !currentThumb.src) return;
+
+          const zoomImg = new Image();
+          zoomImg.onload = () => {
+            if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
+            if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
+            
+            const studentInspectBanner = document.getElementById('studentInspectBanner');
+            if (studentInspectBanner) {
+              const bannerText = document.getElementById('inspectBannerText');
+              if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
+              studentInspectBanner.style.display = "flex";
+            }
+          };
+          zoomImg.src = currentThumb.src;
+        });
+
+        seeAllBtn.parentElement.appendChild(fallbackCard);
+        liveImg = fbImg;
+      }
+    }
   }
-  
-  if (liveImg) { liveImg.src = studentData.boardImage; }
+
+  // 5. Update data source image string frame instantly
+  if (liveImg) {
+    liveImg.src = studentData.boardImage;
+  }
 }
 
 // Dedicated function to bring back the teacher's workspace seamlessly
