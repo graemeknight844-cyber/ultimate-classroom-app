@@ -157,10 +157,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (whiteboardModeBtn) {
     whiteboardModeBtn.addEventListener('click', () => {
+      // 1. Remove the active highlight from the Quiz button and add it to Whiteboard
+      if (quizModeBtn) quizModeBtn.classList.remove('active');
+      if (pollModeBtn) pollModeBtn.classList.remove('active');
+      whiteboardModeBtn.classList.add('active');
+
+      // 2. Hide the quiz and poll panels, and bring the Whiteboard back to life!
       if (quizPanel) quizPanel.style.display = 'none';
+      if (pollPanel) pollPanel.style.display = 'none';
+      if (teacherWhiteboardView) teacherWhiteboardView.style.display = 'block';
     });
   }
-
+  
   if (pollModeBtn) {
     pollModeBtn.addEventListener('click', () => {
       if (quizPanel) quizPanel.style.display = 'none';
