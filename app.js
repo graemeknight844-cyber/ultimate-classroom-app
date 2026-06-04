@@ -185,27 +185,31 @@ window.startTeacherConnection = function(roomCode) {
 
   channel
     .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
-      // 1. CHOOSE ROUTE: IS THIS A MULTIPLE CHOICE QUIZ BUTTON SUBMISSION?
       if (payload && payload.optionSelected !== undefined) {
-        console.log(`Quiz submission received from student [${payload.name}]:`, payload);
+        console.log(`Quiz submission received from student [${payload.name || payload.studentName}]:`, payload);
         
-        // Save response parameters cleanly to active quiz metrics dictionary
-        if (typeof activeLiveQuizMetrics !== 'undefined') {
-          activeLiveQuizMetrics[payload.name] = {
-            choiceIndex: payload.optionSelected,
-            choiceText: payload.textValue,
-            timestamp: new Date().toLocaleTimeString()
-          };
+        const accurateName = payload.name || payload.studentName || "Anonymous-Student";
+        if (typeof window.activeLiveQuizMetrics === 'undefined') {
+          window.activeLiveQuizMetrics = {};
         }
         
-        // Trigger your layout updates so it prints onto your dashboard grid instantly
+        window.activeLiveQuizMetrics[accurateName] = {
+          choiceIndex: payload.optionSelected,
+          choiceText: payload.textValue || "",
+          timestamp: new Date().toLocaleTimeString()
+        };
+        
         if (typeof updateTeacherQuizDashboardUI === "function") {
           updateTeacherQuizDashboardUI();
         } else if (typeof renderLiveSubmissionsGrid === "function") {
           renderLiveSubmissionsGrid();
         }
+        
+        // CRITICAL FIX: This line forces the bar graphs to update dynamically!
+        if (typeof evaluateAutomationProgress === "function") {
+          evaluateAutomationProgress();
+        }
       } 
-      // 2. ALTERNATE ROUTE: FALL BACK TO WHITEBOARD CANVAS SNAPSHOT PROCESSING
       else {
         handleIncomingStudentAnswer(payload); 
       }
@@ -218,26 +222,25 @@ window.startTeacherConnection = function(roomCode) {
     });
 };
 
-  // Connect instantly to the standard testing room configuration
-  window.startTeacherConnection("8492");
+// Connect instantly to the standard testing room configuration
+window.startTeacherConnection("8492");
 
-  // Critical: Setup listeners AFTER all elements are bounded inside DOM ready thread
-  setupEventListeners();
-}); 
-
-// ============================================================================
-// PASTE EVERYTHING BELOW HERE DIRECTLY OUTSIDE THE DOM THREAD:
-// ============================================================================
+// Initialize whiteboard tools safely
+setupEventListeners();
+}); // <-- THIS CLOSES DOMContentLoaded
 
 // ============================================================================
-// LISTENERS BINDINGS (Connects HTML Buttons to JS Code Blocks)
+// QUIZ PRESENTATION ENGINE & BUTTON BINDINGS (OUTSIDE DOMContentLoaded)
 // ============================================================================
-function setupEventListeners() {
+
+// CRITICAL FIX: Renamed this function so it never overwrites your whiteboard buttons!
+function initQuizSystemEventListeners() {
   const launchBtn = document.getElementById('launchQuizBtn');
   const endBtn = document.getElementById('endQuizBtn');
 
   if (launchBtn) {
-    launchBtn.addEventListener('click', () => {
+    launchBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       if (typeof window.launchCurrentActiveQuiz === 'function') {
         window.launchCurrentActiveQuiz();
       }
@@ -245,7 +248,8 @@ function setupEventListeners() {
   }
 
   if (endBtn) {
-    endBtn.addEventListener('click', () => {
+    endBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       if (typeof window.endCurrentActiveQuiz === 'function') {
         window.endCurrentActiveQuiz();
       }
@@ -253,21 +257,24 @@ function setupEventListeners() {
   }
 }
 
-// ============================================================================
-// FULL SCREEN QUIZ PRESENTATION GRAPH LOOP CONTROLLER
-// ============================================================================
+// Bind quiz buttons perfectly after the page loads
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initQuizSystemEventListeners);
+} else {
+  initQuizSystemEventListeners();
+}
+
 let automatedQuizState = {
   isActive: false,
   currentQuestionIndex: 0,
   questionsDeck: [], 
-  totalActiveStudents: 3 // Set to match your test iPads threshold layout count
+  totalActiveStudents: 3 
 };
 
 function getLiveConnectedStudentCount() {
   return automatedQuizState.totalActiveStudents;
 }
 
-// DRAWS THE REAL-TIME GRAPH COLUMNS INSIDE THE PRESENTATION SPACE
 function drawTeacherPresentationCharts() {
   const chartGrid = document.getElementById('presLiveBarGraphGrid');
   if (!chartGrid || !automatedQuizState.isActive) return;
@@ -325,13 +332,7 @@ function drawTeacherPresentationCharts() {
 window.launchCurrentActiveQuiz = function() {
   console.log("Launching Active Quiz Presentation Sequence...");
   
-  if (!channel) {
-    alert("Supabase channel network connection lost! Reconnecting...");
-    return;
-  }
-
-  // Check if user has queued questions from Bulk Import, otherwise read the single form fields
-  if (quizState.plannedQueue && quizState.plannedQueue.length > 0) {
+  if (typeof quizState !== 'undefined' && quizState.plannedQueue && quizState.plannedQueue.length > 0) {
     automatedQuizState.questionsDeck = quizState.plannedQueue;
   } else {
     const qInput = document.getElementById('quizQuestion');
@@ -339,7 +340,7 @@ window.launchCurrentActiveQuiz = function() {
 
     const questionText = qInput ? qInput.value.trim() : "";
     if (!questionText) {
-      alert("Staging layout empty! Please write a question or run a Bulk Import queue first.");
+      alert("Staging layout empty! Please write a question first.");
       return;
     }
 
@@ -353,7 +354,6 @@ window.launchCurrentActiveQuiz = function() {
   automatedQuizState.currentQuestionIndex = 0;
   window.activeLiveQuizMetrics = {};
 
-  // Toggle Display interfaces screen windows cleanly
   const whiteboardView = document.getElementById('teacherWhiteboardView') || document.getElementById('whiteboardWorkspace');
   const presentationView = document.getElementById('teacherQuizPresentationView');
   
@@ -385,26 +385,30 @@ function runAutomatedQuestionSequence() {
   if (txtLabel) txtLabel.textContent = currentQuestionData.question;
   if (statusMarquee) statusMarquee.textContent = "⏳ Synchronizing pupil iPads countdown cards...";
 
-  channel.send({
-    type: 'broadcast',
-    event: 'quiz-countdown',
-    payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
-  });
+  if (typeof channel !== 'undefined' && channel) {
+    channel.send({
+      type: 'broadcast',
+      event: 'quiz-countdown',
+      payload: { countdownTime: 3, questionNumber: currentIndex + 1 }
+    });
+  }
 
   drawTeacherPresentationCharts();
 
   setTimeout(() => {
     if (!automatedQuizState.isActive) return;
 
-    channel.send({
-      type: 'broadcast',
-      event: 'start-live-quiz',
-      payload: {
-        question: currentQuestionData.question,
-        options: currentQuestionData.options,
-        playstyle: "gameshow"
-      }
-    });
+    if (typeof channel !== 'undefined' && channel) {
+      channel.send({
+        type: 'broadcast',
+        event: 'start-live-quiz',
+        payload: {
+          question: currentQuestionData.question,
+          options: currentQuestionData.options,
+          playstyle: "gameshow"
+        }
+      });
+    }
 
     if (statusMarquee) statusMarquee.textContent = "🚀 QUESTION ACTIVE — Awaiting student feedback responses...";
   }, 3200);
@@ -421,7 +425,7 @@ function evaluateAutomationProgress() {
 
   if (currentResponsesCount >= targetCount && targetCount > 0) {
     if (statusMarquee) {
-      statusMarquee.textContent = "✓ Everyone locked in! Loading next card matrix loop...";
+      statusMarquee.textContent = "✓ Everyone locked in! Loading next question...";
       statusMarquee.style.color = "#2ecc71";
     }
 
@@ -436,7 +440,7 @@ function evaluateAutomationProgress() {
 window.endCurrentActiveQuiz = function() {
   automatedQuizState.isActive = false;
   
-  if (channel) {
+  if (typeof channel !== 'undefined' && channel) {
     channel.send({ type: 'broadcast', event: 'clear-live-quiz', payload: { status: "terminated" } });
   }
 
