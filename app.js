@@ -885,17 +885,7 @@ window.endCurrentActiveQuiz = function() {
 // ============================================================================
 // WHITEBOARD UTILITY CORE & EVENT HANDLERS
 // ============================================================================
-function setupEventListeners() {
-  const launchBtn = document.getElementById('launchQuizBtn');
-  const endBtn = document.getElementById('endQuizBtn');
 
-  if (launchBtn) {
-    launchBtn.onclick = function() { window.launchCurrentActiveQuiz(); };
-  }
-  if (endBtn) {
-    endBtn.onclick = function() { window.endCurrentActiveQuiz(); };
-  }
-}
 
 function pushToHistory() {
   if (!canvas) return;
@@ -1162,7 +1152,7 @@ function closeAndSavePoll() {
 }
 
 // ============================================================================
-// EVENT LISTENERS WIRING SETUP
+// WHITEBOARD UTILITY CORE & EVENT HANDLERS (CLEAN UNBROKEN VERSION)
 // ============================================================================
 function setupEventListeners() {
   if (penToolBtn) penToolBtn.addEventListener('click', () => setActiveTool('pen', penToolBtn));
@@ -1198,14 +1188,6 @@ function setupEventListeners() {
 
   if (startPollBtn) startPollBtn.addEventListener('click', launchPoll);
   if (endPollBtn) endPollBtn.addEventListener('click', closeAndSavePoll);
-
-// Add these event bindings inside your setup block to hook the buttons up!
-if (launchQuizBtn) {
-  launchQuizBtn.addEventListener('click', window.launchCurrentActiveQuiz);
-}
-if (endQuizBtn) {
-  endQuizBtn.addEventListener('click', window.endCurrentActiveQuiz);
-}
 
   if (colorPicker) {
     colorPicker.addEventListener('input', (e) => {
@@ -1309,16 +1291,6 @@ if (endQuizBtn) {
       if (supabaseClient) await supabaseClient.auth.signOut();
       window.location.href = "index.html";
     });
-  }
-
-  // ============================================================================
-  // LIVE QUIZ IGNITION CLICK HOOKS
-  // ============================================================================
-  if (launchQuizBtn) {
-    launchQuizBtn.addEventListener('click', launchCurrentActiveQuiz);
-  }
-  if (endQuizBtn) {
-    endQuizBtn.addEventListener('click', terminateLiveQuizSession);
   }
 }
 
