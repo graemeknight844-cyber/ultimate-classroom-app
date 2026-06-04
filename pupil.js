@@ -353,7 +353,7 @@ function startLiveConnection(roomCode) {
             btn.style.opacity = "1";
 
             if (pupilQuizStatus) {
-              `✓ Answer submitted to teacher panel!`;
+              pupilQuizStatus.textContent = `✓ Answer submitted to teacher panel!`;
               pupilQuizStatus.style.display = 'block';
               pupilQuizStatus.style.color = '#2ecc71';
             }
