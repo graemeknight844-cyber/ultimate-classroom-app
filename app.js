@@ -146,11 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (quizModeBtn) {
     quizModeBtn.addEventListener('click', () => {
       if (whiteboardModeBtn) whiteboardModeBtn.classList.remove('active');
-      if (pollModeBtn) pollModeBtn.classList.remove('active');
+      if (typeof pollModeBtn !== 'undefined' && pollModeBtn) pollModeBtn.classList.remove('active');
       quizModeBtn.classList.add('active');
 
       if (quizPanel) quizPanel.style.display = 'block';
-      if (pollPanel) pollPanel.style.display = 'none';
+      if (typeof pollPanel !== 'undefined' && pollPanel) pollPanel.style.display = 'none';
       if (teacherWhiteboardView) teacherWhiteboardView.style.display = 'none';
     });
   }
@@ -159,19 +159,162 @@ document.addEventListener('DOMContentLoaded', () => {
     whiteboardModeBtn.addEventListener('click', () => {
       // 1. Remove the active highlight from the Quiz button and add it to Whiteboard
       if (quizModeBtn) quizModeBtn.classList.remove('active');
-      if (pollModeBtn) pollModeBtn.classList.remove('active');
+      if (typeof pollModeBtn !== 'undefined' && pollModeBtn) pollModeBtn.classList.remove('active');
       whiteboardModeBtn.classList.add('active');
 
       // 2. Hide the quiz and poll panels, and bring the Whiteboard back to life!
       if (quizPanel) quizPanel.style.display = 'none';
-      if (pollPanel) pollPanel.style.display = 'none';
+      if (typeof pollPanel !== 'undefined' && pollPanel) pollPanel.style.display = 'none';
       if (teacherWhiteboardView) teacherWhiteboardView.style.display = 'block';
     });
   }
   
-  if (pollModeBtn) {
+  if (typeof pollModeBtn !== 'undefined' && pollModeBtn) {
     pollModeBtn.addEventListener('click', () => {
       if (quizPanel) quizPanel.style.display = 'none';
+    });
+  }
+
+  // ============================================================================
+  // NEW AUTOMATED QUIZ BUTTON TRACKING LOGIC (PLACED SAFELY INSIDE)
+  // ============================================================================
+  const addBtn = document.getElementById('addQuestionToBankBtn');
+  const launchBtn = document.getElementById('launchQuizBtn');
+  const emergencyBtn = document.getElementById('emergencyEndQuizBtn');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const qInput = document.getElementById('quizQuestionInput');
+      const opt0 = document.getElementById('quizOpt0');
+      const opt1 = document.getElementById('quizOpt1');
+      const opt2 = document.getElementById('quizOpt2');
+      const opt3 = document.getElementById('quizOpt3');
+      const radios = document.getElementsByName('quizCorrectRadio');
+
+      if (!qInput || !qInput.value.trim()) {
+        alert("Please enter a question first before saving!");
+        return;
+      }
+
+      let correctIdx = 0;
+      for (let i = 0; i < radios.length; i++) {
+        if (radios[i].checked) { correctIdx = i; break; }
+      }
+
+      // Ensure quizState variable exists safely
+      if (typeof quizState === 'undefined') {
+        window.quizState = { isActive: false, currentQuestionIndex: 0, plannedQueue: [], activeSubmissions: {} };
+      }
+
+      const quizCard = {
+        question: qInput.value.trim(),
+        options: [
+          opt0?.value.trim() || "Option A",
+          opt1?.value.trim() || "Option B",
+          opt2?.value.trim() || "Option C",
+          opt3?.value.trim() || "Option D"
+        ],
+        correctIndex: correctIdx
+      };
+
+      quizState.plannedQueue.push(quizCard);
+
+      // Clear layout textboxes for next entries
+      qInput.value = "";
+      if (opt0) opt0.value = "";
+      if (opt1) opt1.value = "";
+      if (opt2) opt2.value = "";
+      if (opt3) opt3.value = "";
+
+      // Update counter text element on screen
+      const countBadge = document.getElementById('quizBankCountBadge');
+      if (countBadge) countBadge.innerText = `${quizState.plannedQueue.length} Questions Saved`;
+
+      // Update the list showing saved questions below the inputs
+      const container = document.getElementById('quizPersistentBankContainer');
+      if (container) {
+        container.innerHTML = quizState.plannedQueue.map((item, idx) => `
+          <div style="background: #34495e; padding: 8px 12px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; color: #fff;">
+            <span><strong>${idx + 1}.</strong> ${item.question}</span>
+            <span style="color: #2ecc71; font-weight: bold; font-size: 11px;">Staged</span>
+          </div>
+        `).join('');
+      }
+
+      alert("✓ Question added to your session deck successfully!");
+    });
+  }
+
+  if (launchBtn) {
+    launchBtn.addEventListener('click', () => {
+      if (typeof quizState === 'undefined' || !quizState.plannedQueue || quizState.plannedQueue.length === 0) {
+        alert("Your staged queue is empty! Please build and save at least one question card first.");
+        return;
+      }
+
+      quizState.isActive = true;
+      quizState.currentQuestionIndex = 0;
+
+      const presOverlay = document.getElementById('teacherQuizPresentationView');
+      if (presOverlay) presOverlay.style.display = 'block';
+
+      const activeCard = quizState.plannedQueue[0];
+      const presNum = document.getElementById('presQuestionNumber');
+      const presText = document.getElementById('presQuestionText');
+      const splash = document.getElementById('presCountdownSplashOverlay');
+      const splashNum = document.getElementById('presCountdownNumberBig');
+      const marquee = document.getElementById('presStatusTextMarquee');
+
+      if (presNum) presNum.innerText = `Question 1 / ${quizState.plannedQueue.length}`;
+      if (presText) presText.innerText = activeCard.question;
+      if (marquee) marquee.innerText = "⏳ Get ready! Quiz starting in 3 seconds...";
+      if (splash) splash.style.display = 'flex';
+
+      // Safe live data transmission broadcast check
+      if (typeof channel !== 'undefined' && channel) {
+        channel.send({
+          type: 'broadcast',
+          event: 'start-live-quiz',
+          payload: { question: activeCard.question, options: activeCard.options, playstyle: "gameshow" }
+        });
+      }
+
+      let count = 3;
+      if (splashNum) splashNum.innerText = count;
+      const clock = setInterval(() => {
+        count--;
+        if (count > 0) {
+          if (splashNum) splashNum.innerText = count;
+        } else {
+          clearInterval(clock);
+          if (splash) splash.style.display = 'none';
+          if (marquee) marquee.innerText = "⚡ Live Answer Collection Active! Waiting for responses...";
+        }
+      }, 1000);
+    });
+  }
+
+  if (emergencyBtn) {
+    emergencyBtn.addEventListener('click', () => {
+      if (typeof quizState !== 'undefined') {
+        quizState.isActive = false;
+        quizState.plannedQueue = [];
+      }
+      const presOverlay = document.getElementById('teacherQuizPresentationView');
+      if (presOverlay) presOverlay.style.display = 'none';
+
+      const countBadge = document.getElementById('quizBankCountBadge');
+      if (countBadge) countBadge.innerText = "0 Questions Saved";
+
+      const container = document.getElementById('quizPersistentBankContainer');
+      if (container) {
+        container.innerHTML = `<em style="color: #7f8c8d; font-size: 12px; display: block; padding: 10px 0; text-align: center;">No questions stored yet. Build questions above to load your session bank.</em>`;
+      }
+
+      if (typeof channel !== 'undefined' && channel) {
+        channel.send({ type: 'broadcast', event: 'clear-live-quiz', payload: {} });
+      }
+      alert("Quiz presentation closed successfully.");
     });
   }
 
