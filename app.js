@@ -989,15 +989,19 @@ function handleUndoAction() {
 // LIVE STUDENT BOARD DISTRIBUTION SYSTEM - WITH INSPECTION TOGGLE HOOKS
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
+  // BULLETPROOF LABEL CHECK: Accept either 'name' or 'studentName'
+  const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
+
   if (!studentSubmissionsHistory[currentBoardIndex]) {
     studentSubmissionsHistory[currentBoardIndex] = {};
   }
-  studentSubmissionsHistory[currentBoardIndex][studentData.name] = studentData.boardImage;
-  renderStudentThumbnailDOM(studentData);
+  studentSubmissionsHistory[currentBoardIndex][pupilName] = studentData.boardImage;
+  renderStudentThumbnailDOM(studentData, pupilName);
 }
 
-function renderStudentThumbnailDOM(studentData) {
-  const safeNameId = studentData.name.replace(/\s+/g, '-');
+function renderStudentThumbnailDOM(studentData, pupilName) {
+  // Use the safe name we just figured out above
+  const safeNameId = pupilName.replace(/\s+/g, '-');
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
 
   if (!liveImg) {
@@ -1024,7 +1028,7 @@ function renderStudentThumbnailDOM(studentData) {
 
     const nameLabel = document.createElement('div');
     nameLabel.id = `thumb-name-${safeNameId}`;
-    nameLabel.textContent = studentData.name;
+    nameLabel.textContent = pupilName; 
     nameLabel.style.cssText = "width:100%; background:#4c4c5e; color:#fff; font-size:12px; font-weight:bold; text-align:center; padding:4px 0; position:absolute; bottom:0; left:0; box-sizing:border-box; z-index:10;";
 
     targetTarget.appendChild(liveImg);
@@ -1035,21 +1039,16 @@ function renderStudentThumbnailDOM(studentData) {
       
       const zoomImg = new Image();
       zoomImg.onload = () => {
-        // 1. Bake elements down safely
-        bakeFloatingObjects();
+        if (typeof bakeFloatingObjects === 'function') bakeFloatingObjects();
+        if (typeof saveCurrentBoardState === 'function') saveCurrentBoardState();
         
-        // 2. CRITICAL CHANGE: Save the actual teacher content snapshot *before* projecting pupil work
-        // This ensures the current state isn't lost if edits were made since page changes
-        saveCurrentBoardState();
-        
-        // 3. Clear canvas plane and draw student work
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(zoomImg, 0, 0, canvas.width, canvas.height);
         
-        // 4. Reveal the Notification Top Banner to the user 
+        const studentInspectBanner = document.getElementById('studentInspectBanner');
         if (studentInspectBanner) {
           const bannerText = document.getElementById('inspectBannerText');
-          if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${studentData.name}`;
+          if (bannerText) bannerText.textContent = `👁️ Displaying Workspace: ${pupilName}`;
           studentInspectBanner.style.display = "flex";
         }
       };
@@ -1059,7 +1058,6 @@ function renderStudentThumbnailDOM(studentData) {
   
   if (liveImg) { liveImg.src = studentData.boardImage; }
 }
-
 // Dedicated function to bring back the teacher's workspace seamlessly
 function revertToTeacherPresentationView() {
   if (!ctx || !canvas) return;
