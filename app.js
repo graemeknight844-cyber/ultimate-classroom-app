@@ -3,7 +3,6 @@
 // ============================================================================
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
-
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 async function checkUserSession() {
@@ -35,6 +34,14 @@ let pollActive = false;
 let activePollData = { question: '', options: [], votes: {} };
 let savedPollsHistory = []; // Keeps track of completed polls for the PDF export
 
+// AUTOMATED QUIZ SYSTEM STATE VARIABLES
+let quizState = {
+  isActive: false,           // Is the live fullscreen presentation running?
+  currentQuestionIndex: 0,   // What question number are we on right now?
+  plannedQueue: [],          // Holds the list of questions you save to your deck
+  activeSubmissions: {}      // Stores student answers as they lock them in live
+};
+
 // Global DOM references
 let canvas, ctx, colorPicker, clearBtn, undoBtn;
 let penToolBtn, textToolBtn, imgToolBtn, rubberToolBtn;
@@ -46,7 +53,6 @@ let timerDisplay, freezeBtn, signOutBtn;
 let pollModeBtn, pollPanel, pollSetup, pollLiveResults;
 let pollQuestionInput, startPollBtn, endPollBtn, livePollQuestion, resultsBarsContainer;
 
-// === MAKE SURE THESE TWO LINES ARE ALIVE HERE ===
 let studentInspectBanner;
 let leavePupilBoardBtn;
 
@@ -54,6 +60,7 @@ let leavePupilBoardBtn;
 let timerInterval = null;
 let isTimerRunning = false;
 let timerMinInput, timerSecInput, timerToggleBtn;
+
 // ============================================================================
 // INITIALIZATION ENGINE (Fires once HTML is fully loaded)
 // ============================================================================
@@ -81,8 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
   freezeBtn = document.getElementById('freezeBtn');
   signOutBtn = document.querySelector('.sign-out'); 
 
-
-
   // Bind Polling DOM Elements
   pollModeBtn = document.getElementById('pollModeBtn');
   pollPanel = document.getElementById('pollPanel');
@@ -94,14 +99,13 @@ document.addEventListener('DOMContentLoaded', () => {
   livePollQuestion = document.getElementById('livePollQuestion');
   resultsBarsContainer = document.getElementById('resultsBars');
 
-  // === NEW STUDENT INSPECTION DOM ELEMENT BINDINGS ===
+  // Bind Student Inspection DOM Elements
   studentInspectBanner = document.getElementById('studentInspectBanner');
   leavePupilBoardBtn = document.getElementById('leavePupilBoardBtn');
 
   if (leavePupilBoardBtn) {
     leavePupilBoardBtn.addEventListener('click', revertToTeacherPresentationView);
   }
-  // ===================================================
 
   if (ctx) {
     ctx.lineWidth = sizeThicknessSlider.value;
@@ -114,14 +118,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   updatePaginationUI();
   setupEventListeners();
+
   // Connect Realtime Broadcast Listener Dynamic Switcher Engine
   window.startTeacherConnection = function(roomCode) {
     if (!supabaseClient) return;
 
-    // Dynamically connect to the target room channel sequence
     channel = supabaseClient.channel(`room_${roomCode}`);
 
-    // Attach listeners to the new dynamic channel
     channel
       .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { handleIncomingStudentAnswer(payload); })
       .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { handleIncomingVote(payload); })
@@ -130,10 +133,41 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   };
 
-  // Connect instantly to the standard testing room configuration
   window.startTeacherConnection("8492");
-});
 
+  // ============================================================================
+  // QUIZ MENU PANEL NAVIGATION SWITCHES
+  // ============================================================================
+  const whiteboardModeBtn = document.getElementById('whiteboardModeBtn');
+  const quizModeBtn = document.getElementById('quizModeBtn');
+  const quizPanel = document.getElementById('quizPanel');
+  const teacherWhiteboardView = document.getElementById('teacherWhiteboardView');
+
+  if (quizModeBtn) {
+    quizModeBtn.addEventListener('click', () => {
+      if (whiteboardModeBtn) whiteboardModeBtn.classList.remove('active');
+      if (pollModeBtn) pollModeBtn.classList.remove('active');
+      quizModeBtn.classList.add('active');
+
+      if (quizPanel) quizPanel.style.display = 'block';
+      if (pollPanel) pollPanel.style.display = 'none';
+      if (teacherWhiteboardView) teacherWhiteboardView.style.display = 'none';
+    });
+  }
+
+  if (whiteboardModeBtn) {
+    whiteboardModeBtn.addEventListener('click', () => {
+      if (quizPanel) quizPanel.style.display = 'none';
+    });
+  }
+
+  if (pollModeBtn) {
+    pollModeBtn.addEventListener('click', () => {
+      if (quizPanel) quizPanel.style.display = 'none';
+    });
+  }
+
+}); // <--- THIS ONE BRACKET CLOSES EVERYTHING SAFELY AT THE END OF THE INITIALIZATION
 
 // ============================================================================
 // WHITEBOARD UTILITY CORE
@@ -1209,3 +1243,26 @@ if (exportBtn) {
     pdf.save('complete-classroom-lesson-session.pdf');
   });
 }
+
+// ============================================================================
+// ============================================================================
+// AUTOMATED QUIZ ENGINE LOGIC (STEP C - INDEPENDENT CORE MODULE)
+// ============================================================================
+// ============================================================================
+
+// 1. CHANNELS SUBMISSION BINDING HOOK
+// This listens to student submissions arriving over Supabase
+function handleIncomingStudentAnswer(payload) {
+  // If a quiz isn't currently running on the screen, ignore incoming submissions
+  if (!quizState.isActive) return;
+
+  const studentName = payload.studentName || "Anonymous Pupil";
+  const chosenIndex = parseInt(payload.chosenIndex);
+
+  // Lock in the student's response
+  quizState.activeSubmissions[studentName] = chosenIndex;
+
+  // Re-draw the bar graphs on your presentation screen with the live values
+  renderLiveQuizBars();
+}
+  // Update the text counter display at the top (e.g., 5 / 3 Pupils
