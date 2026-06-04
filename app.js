@@ -121,35 +121,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Connect Realtime Broadcast Listener Dynamic Switcher Engine
   window.startTeacherConnection = function(roomCode) {
-    if (!supabaseClient) return;
-
-    channel = supabaseClient.channel(`room_${roomCode}`);
-
-    channel
-      .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
-        // SORTING OFFICE: Look inside the message from the iPad
-        
-        if (payload.boardImage) {
-          // 1. It has an image! Send it to the Teacher's Whiteboard Grid
-          if (typeof handleIncomingStudentAnswer === 'function') {
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+      channel = supabaseClient.channel(`room_${roomCode}`)
+        .on('broadcast', { event: 'submit-answer' }, ({ payload }) => { 
+          console.log("📦 Received package from iPad:", payload);
+          
+          if (payload.boardImage) {
             handleIncomingStudentAnswer(payload); 
-          }
-        } 
-        else if (payload.chosenIndex !== undefined) {
-          // 2. It has a quiz choice! Send it to the Live Graph
-          if (typeof window.handleIncomingQuizAnswer === 'function') {
+          } 
+          else if (payload.chosenIndex !== undefined) {
             window.handleIncomingQuizAnswer(payload);
           }
-        }
-      })
-      .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { 
-        if (typeof handleIncomingVote === 'function') {
+        })
+        .on('broadcast', { event: 'submit-vote' }, ({ payload }) => { 
           handleIncomingVote(payload); 
-        }
-      })
-      .subscribe((status) => {
-        console.log(`Teacher channel status for room_${roomCode}:`, status);
-      });
+        })
+        .subscribe((status) => {
+          console.log(`Teacher channel status for room_${roomCode}:`, status);
+        });
+    }
   };
 
   window.startTeacherConnection("8492");
@@ -338,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 }); // <--- THIS ONE BRACKET CLOSES EVERYTHING SAFELY AT THE END OF THE INITIALIZATION
-
 // ============================================================================
 // WHITEBOARD UTILITY CORE
 // ============================================================================
