@@ -989,19 +989,23 @@ function handleUndoAction() {
 // LIVE STUDENT BOARD DISTRIBUTION SYSTEM - WITH INSPECTION TOGGLE HOOKS
 // ============================================================================
 function handleIncomingStudentAnswer(studentData) {
-  // BULLETPROOF LABEL CHECK: Accept either 'name' or 'studentName'
+  // We extract the name safely here...
   const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
 
   if (!studentSubmissionsHistory[currentBoardIndex]) {
     studentSubmissionsHistory[currentBoardIndex] = {};
   }
   studentSubmissionsHistory[currentBoardIndex][pupilName] = studentData.boardImage;
-  renderStudentThumbnailDOM(studentData, pupilName);
+  
+  // Notice we only pass ONE argument now so we don't confuse the rest of your app!
+  renderStudentThumbnailDOM(studentData);
 }
 
-function renderStudentThumbnailDOM(studentData, pupilName) {
-  // Use the safe name we just figured out above
+function renderStudentThumbnailDOM(studentData) {
+  // We safely extract the name inside this function too, so it never crashes!
+  const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
   const safeNameId = pupilName.replace(/\s+/g, '-');
+  
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
 
   if (!liveImg) {
@@ -1058,6 +1062,7 @@ function renderStudentThumbnailDOM(studentData, pupilName) {
   
   if (liveImg) { liveImg.src = studentData.boardImage; }
 }
+
 // Dedicated function to bring back the teacher's workspace seamlessly
 function revertToTeacherPresentationView() {
   if (!ctx || !canvas) return;
