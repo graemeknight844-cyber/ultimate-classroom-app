@@ -1274,3 +1274,72 @@ function handleIncomingStudentAnswer(payload) {
   renderLiveQuizBars();
 }
   // Update the text counter display at the top (e.g., 5 / 3 Pupils
+
+  // ============================================================================
+// STEP-BY-STEP QUIZ SERVICE FUNCTIONS
+// ============================================================================
+
+// This function runs automatically to connect your buttons when the page loads
+function setupMyQuizButtons() {
+  const addBtn = document.getElementById('addQuestionToBankBtn');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      // 1. Grab the text boxes from your screen
+      const qInput = document.getElementById('quizQuestionInput');
+      const opt0 = document.getElementById('quizOpt0');
+      const opt1 = document.getElementById('quizOpt1');
+      const opt2 = document.getElementById('quizOpt2');
+      const opt3 = document.getElementById('quizOpt3');
+      const radios = document.getElementsByName('quizCorrectRadio');
+
+      // Safety check: If they didn't type a question, stop them
+      if (!qInput || !qInput.value.trim()) {
+        alert("Please type a question first before saving!");
+        return;
+      }
+
+      // 2. Find out which radio dot is clicked as the correct answer
+      let correctIdx = 0;
+      for (let i = 0; i < radios.length; i++) {
+        if (radios[i].checked) {
+          correctIdx = i;
+          break;
+        }
+      }
+
+      // 3. Package the typed question neatly
+      const newQuestionCard = {
+        question: qInput.value.trim(),
+        options: [
+          opt0?.value.trim() || "Option A",
+          opt1?.value.trim() || "Option B",
+          opt2?.value.trim() || "Option C",
+          opt3?.value.trim() || "Option D"
+        ],
+        correctIndex: correctIdx
+      };
+
+      // 4. Drop it into our virtual basket!
+      quizState.plannedQueue.push(newQuestionCard);
+
+      // 5. Clear out the text boxes on your screen so you can type a new one
+      qInput.value = "";
+      if (opt0) opt0.value = "";
+      if (opt1) opt1.value = "";
+      if (opt2) opt2.value = "";
+      if (opt3) opt3.value = "";
+
+      // 6. Update the counter badge text on your screen
+      const countBadge = document.getElementById('quizBankCountBadge');
+      if (countBadge) {
+        countBadge.innerText = `${quizState.plannedQueue.length} Questions Saved`;
+      }
+
+      alert("✓ Question added to your session deck successfully!");
+    });
+  }
+}
+
+// Kickstart the button wire-up immediately
+setupMyQuizButtons();
