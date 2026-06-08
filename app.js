@@ -29,8 +29,6 @@ let currentBoardIndex = 0;
 let studentSubmissionsHistory = [{}]; 
 let canvasHistory = []; 
 
-let savedQuizzesHistory = [];
-
 // POLLING DATA STRUCTURES
 let pollActive = false;
 let activePollData = { question: '', options: [], votes: {} };
@@ -1486,4 +1484,3 @@ const startLiveQuizDeckBtn = document.getElementById('startLiveQuizDeckBtn');
 if (startLiveQuizDeckBtn) {
   startLiveQuizDeckBtn.addEventListener('click', startLiveQuizDeck);
 }
-
