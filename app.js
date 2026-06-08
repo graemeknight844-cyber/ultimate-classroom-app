@@ -1271,6 +1271,87 @@ if (exportBtn) {
 }
 
 // ============================================================================
+// AUTOMATED QUIZ CREATION ENGINE LOGIC (RECOVERY MODULE)
+// ============================================================================
+function setupMyQuizButtons() {
+  const addBtn = document.getElementById('addQuestionToBankBtn');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const qInput = document.getElementById('quizQuestionInput');
+      const opt0 = document.getElementById('quizOpt0');
+      const opt1 = document.getElementById('quizOpt1');
+      const opt2 = document.getElementById('quizOpt2');
+      const opt3 = document.getElementById('quizOpt3');
+      const radios = document.getElementsByName('quizCorrectRadio');
+
+      if (!qInput || !qInput.value.trim()) {
+        alert("Please type a question first before saving!");
+        return;
+      }
+
+      let correctIdx = 0;
+      for (let i = 0; i < radios.length; i++) {
+        if (radios[i].checked) {
+          correctIdx = i;
+          break;
+        }
+      }
+
+      const newQuestionCard = {
+        question: qInput.value.trim(),
+        options: [
+          opt0?.value.trim() || "Option A",
+          opt1?.value.trim() || "Option B",
+          opt2?.value.trim() || "Option C",
+          opt3?.value.trim() || "Option D"
+        ],
+        correctIndex: correctIdx
+      };
+
+      // Ensure the array state exists before pushing
+      if (typeof quizState === 'undefined') window.quizState = {};
+      if (!quizState.plannedQueue) quizState.plannedQueue = [];
+      
+      quizState.plannedQueue.push(newQuestionCard);
+
+      qInput.value = "";
+      if (opt0) opt0.value = "";
+      if (opt1) opt1.value = "";
+      if (opt2) opt2.value = "";
+      if (opt3) opt3.value = "";
+
+      const countBadge = document.getElementById('quizBankCountBadge');
+      if (countBadge) {
+        countBadge.innerText = `${quizState.plannedQueue.length} Questions Saved`;
+      }
+
+      const container = document.getElementById('quizPersistentBankContainer');
+      if (container) {
+        container.innerHTML = quizState.plannedQueue.map((item, idx) => `
+          <div style="background: #34495e; padding: 8px 12px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; color: #fff;">
+            <span><strong>${idx + 1}.</strong> ${item.question}</span>
+            <span style="color: #2ecc71; font-weight: bold; font-size: 11px;">Staged</span>
+          </div>
+        `).join('');
+      }
+
+      alert("✓ Question added to your session deck successfully!");
+    });
+  }
+}
+
+// 🚀 Explicitly tell the browser to execute the listener setup on page boot
+if (typeof setupMyQuizButtons === 'function') {
+  setupMyQuizButtons();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof setupMyQuizButtons === 'function') {
+    setupMyQuizButtons();
+  }
+});
+
+// ============================================================================
 // AUTOMATED QUIZ LIVE DELIVERY MODULE (PRESENTATION & LIVE STATS)
 // ============================================================================
 
@@ -1484,14 +1565,3 @@ const startLiveQuizDeckBtn = document.getElementById('startLiveQuizDeckBtn');
 if (startLiveQuizDeckBtn) {
   startLiveQuizDeckBtn.addEventListener('click', startLiveQuizDeck);
 }
-
-// 🚀 Safely wake up the quiz buttons when the page boots up
-if (typeof setupMyQuizButtons === 'function') {
-  setupMyQuizButtons();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof setupMyQuizButtons === 'function') {
-    setupMyQuizButtons();
-  }
-});
