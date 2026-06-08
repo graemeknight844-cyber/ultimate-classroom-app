@@ -1370,3 +1370,183 @@ function setupMyQuizButtons() {
     });
   }
 }
+
+// ============================================================================
+// AUTOMATED QUIZ LIVE DELIVERY MODULE (PRESENTATION & LIVE STATS)
+// ============================================================================
+
+// 1. LAUNCH THE ACTIVE LIVE DECK SCREEN
+function startLiveQuizDeck() {
+  if (!quizState || quizState.plannedQueue.length === 0) {
+    alert("Your question deck is empty! Please create and save at least one question first.");
+    return;
+  }
+
+  // Lock the system state flags
+  quizState.isActive = true;
+  quizState.currentQuestionIndex = 0;
+  quizState.activeSubmissions = {}; // Clear out any stale data
+
+  // Swap out the active screen blocks cleanly
+  const whiteboardView = document.getElementById('teacherWhiteboardView');
+  const quizSetupPanel = document.getElementById('quizPanel');
+  
+  if (whiteboardView) whiteboardView.style.display = 'none';
+  if (quizSetupPanel) quizSetupPanel.style.display = 'none';
+
+  // Spawns a dedicated high-contrast live playback stage over the screen
+  let liveStage = document.getElementById('quizLivePresentationStage');
+  if (!liveStage) {
+    liveStage = document.createElement('div');
+    liveStage.id = 'quizLivePresentationStage';
+    liveStage.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #1a1a24; color: #ffffff; z-index: 99999; padding: 40px; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; justify-content: space-between;";
+    document.body.appendChild(liveStage);
+  } else {
+    liveStage.style.display = 'flex';
+  }
+
+  // Render the interface inside the live arena stage overlay
+  liveStage.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2c2c3e; padding-bottom: 15px;">
+      <div>
+        <span style="background: #e74c3c; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-right: 10px;">Live Arena</span>
+        <span id="quizStageProgressTracker" style="font-size: 16px; font-weight: 600; color: #a0a0c0;">Question 1 of ${quizState.plannedQueue.length}</span>
+      </div>
+      <button id="closeLiveQuizArenaBtn" style="background: #c0392b; color: white; border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer;">End Session</button>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; max-width: 1000px; margin: 0 auto; width: 100%; padding: 40px 0;">
+      <h1 id="quizStageQuestionHeader" style="font-size: 32px; font-weight: bold; margin-bottom: 30px; line-height: 1.3; color: #fff;">Loading...</h1>
+      <div id="quizStageLiveBarsContainer" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;"></div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #2c2c3e; padding-top: 15px;">
+      <div style="font-size: 14px; color: #8e8e9f;">
+        Responses Registered: <span id="quizStageSubmissionCounter" style="font-weight: bold; color: #2ecc71; font-size: 16px;">0</span> Active Pupils
+      </div>
+      <div>
+        <button id="quizStageShowAnswerBtn" style="background: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-right: 10px;">Reveal Answer</button>
+        <button id="quizStageNextQuestionBtn" style="background: #2ecc71; color: white; border: none; padding: 10px 24px; font-weight: bold; border-radius: 4px; cursor: pointer;">Next Question ➔</button>
+      </div>
+    </div>
+  `;
+
+  // Attach execution listeners inside the active view
+  document.getElementById('closeLiveQuizArenaBtn').addEventListener('click', terminateLiveQuizDeck);
+  document.getElementById('quizStageShowAnswerBtn').addEventListener('click', revealCorrectQuizAnswer);
+  document.getElementById('quizStageNextQuestionBtn').addEventListener('click', advanceQuizDeckNext);
+
+  presentActiveQuizQuestionIndex();
+}
+
+// 2. DISPATCH ACTIVE SLIDE DATA TO IPADS
+function presentActiveQuizQuestionIndex() {
+  const currentQuestion = quizState.plannedQueue[quizState.currentQuestionIndex];
+  if (!currentQuestion) return;
+
+  quizState.activeSubmissions = {}; // Clear responses for the new question
+
+  document.getElementById('quizStageProgressTracker').textContent = `Question ${quizState.currentQuestionIndex + 1} of ${quizState.plannedQueue.length}`;
+  document.getElementById('quizStageQuestionHeader').textContent = currentQuestion.question;
+  document.getElementById('quizStageSubmissionCounter').textContent = "0";
+
+  renderLiveQuizBars(false);
+
+  // Broadcast out to iPad streams so the multiple choice options load up over there
+  if (channel) {
+    channel.send({
+      type: 'broadcast',
+      event: 'start-live-quiz',
+      payload: {
+        index: quizState.currentQuestionIndex,
+        question: currentQuestion.question,
+        options: currentQuestion.options
+      }
+    });
+  }
+}
+
+// 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME
+function renderLiveQuizBars(revealAnswerKey = false) {
+  const container = document.getElementById('quizStageLiveBarsContainer');
+  if (!container) return;
+
+  const currentQuestion = quizState.plannedQueue[quizState.currentQuestionIndex];
+  if (!currentQuestion) return;
+
+  const studentAnswersArray = Object.values(quizState.activeSubmissions);
+  const totalSubmissionsCount = studentAnswersArray.length;
+
+  const labelCounter = document.getElementById('quizStageSubmissionCounter');
+  if (labelCounter) labelCounter.textContent = totalSubmissionsCount;
+
+  const tally = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  studentAnswersArray.forEach(idx => { if (tally[idx] !== undefined) tally[idx]++; });
+
+  container.innerHTML = '';
+
+  currentQuestion.options.forEach((optionText, idx) => {
+    const voteCount = tally[idx];
+    const percentage = totalSubmissionsCount > 0 ? Math.round((voteCount / totalSubmissionsCount) * 100) : 0;
+    const isThisCorrectOption = (currentQuestion.correctIndex === idx);
+
+    const row = document.createElement('div');
+    row.style.cssText = "display: flex; align-items: center; background: #252538; padding: 12px 20px; border-radius: 6px; position: relative; overflow: hidden; border: 2px solid transparent; transition: all 0.2s ease; margin-bottom: 8px;";
+
+    if (revealAnswerKey) {
+      if (isThisCorrectOption) {
+        row.style.borderColor = "#2ecc71";
+        row.style.background = "#1b3a2b";
+      } else {
+        row.style.opacity = "0.3";
+      }
+    }
+
+    const optionLetter = String.fromCharCode(65 + idx); // A, B, C, D
+
+    row.innerHTML = `
+      <div style="width: 35px; font-weight: bold; font-size: 18px; color: ${revealAnswerKey && isThisCorrectOption ? '#2ecc71' : '#3498db'}; z-index: 5;">${optionLetter}</div>
+      <div style="flex-grow: 1; font-size: 16px; font-weight: 600; z-index: 5; color: #fff;">${optionText}</div>
+      <div style="font-size: 14px; font-weight: bold; color: #a0a0c0; z-index: 5; text-align: right; width: 150px;">${voteCount} votes (${percentage}%)</div>
+      <div style="position: absolute; left: 0; top: 0; bottom: 0; width: ${percentage}%; background: ${revealAnswerKey && isThisCorrectOption ? 'rgba(46, 204, 113, 0.25)' : 'rgba(52, 152, 219, 0.12)'}; transition: width 0.3s ease; z-index: 1;"></div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+// 4. DISPLAY CORRECT ANSWER SELECTION
+function revealCorrectQuizAnswer() {
+  renderLiveQuizBars(true);
+}
+
+// 5. PROCEED TO NEXT QUEUED TASK SLIDE
+function advanceQuizDeckNext() {
+  if (quizState.currentQuestionIndex + 1 < quizState.plannedQueue.length) {
+    quizState.currentQuestionIndex++;
+    presentActiveQuizQuestionIndex();
+  } else {
+    alert("🏁 That was the last question in your saved quiz deck!");
+    terminateLiveQuizDeck();
+  }
+}
+
+// 6. CLOSES THE ARENA OVERLAY AND SHUTS DOWN SESSION FLAGS
+function terminateLiveQuizDeck() {
+  quizState.isActive = false;
+  
+  const liveStage = document.getElementById('quizLivePresentationStage');
+  if (liveStage) liveStage.style.display = 'none';
+
+  const whiteboardView = document.getElementById('teacherWhiteboardView');
+  if (whiteboardView) whiteboardView.style.display = 'block';
+
+  if (channel) {
+    channel.send({ type: 'broadcast', event: 'close-live-quiz' });
+  }
+}
+
+// 7. AUTO-ATTACH TO THE HTML SWITCH BUTTON ON THE PAGE
+const startLiveQuizDeckBtn = document.getElementById('startLiveQuizDeckBtn');
+if (startLiveQuizDeckBtn) {
+  startLiveQuizDeckBtn.addEventListener('click', startLiveQuizDeck);
+}
