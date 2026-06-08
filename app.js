@@ -1452,7 +1452,7 @@ function presentActiveQuizQuestionIndex() {
 
   renderLiveQuizBars(false);
 
-  // Broadcast out to iPad streams so the multiple choice options load up over there
+ // Broadcast out to iPad streams so the multiple choice options load up over there
   if (channel) {
     channel.send({
       type: 'broadcast',
@@ -1460,7 +1460,9 @@ function presentActiveQuizQuestionIndex() {
       payload: {
         index: quizState.currentQuestionIndex,
         question: currentQuestion.question,
-        options: currentQuestion.options
+        options: currentQuestion.options,
+        correctIndex: currentQuestion.correctIndex,    // 👈 ADD THIS LINE
+        totalQuestions: quizState.plannedQueue.length   // 👈 ADD THIS LINE
       }
     });
   }
