@@ -1534,14 +1534,22 @@ function advanceQuizDeckNext() {
 function terminateLiveQuizDeck() {
   quizState.isActive = false;
   
+  // 1. Hide presentation stage completely on your screen
   const liveStage = document.getElementById('quizLivePresentationStage');
   if (liveStage) liveStage.style.display = 'none';
 
+  // 2. Return your view smoothly to whiteboard controls
   const whiteboardView = document.getElementById('teacherWhiteboardView');
   if (whiteboardView) whiteboardView.style.display = 'block';
 
+  // 3. FORCE STUDENT iPads BACK TO WHITEBOARDS (Add this)
   if (channel) {
-    channel.send({ type: 'broadcast', event: 'close-live-quiz' });
+    channel.send({ 
+      type: 'broadcast', 
+      event: 'close-live-quiz',
+      payload: { action: 'return-to-whiteboard' } 
+    });
+    console.log("📡 Broadcasted exit signal to all student devices.");
   }
 }
 
