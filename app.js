@@ -831,39 +831,51 @@ function handleIncomingStudentBoard(studentData) {
 }
 
 function renderStudentThumbnailDOM(studentData) {
-  // 👇 FIXED: Check both property pathways so no student variable gets dropped!
   const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
   const safeNameId = pupilName.replace(/\s+/g, '-');
   
+  // 1. Check if this student already has a dedicated thumbnail box anywhere on screen
+  let existingSlot = document.querySelector(`[data-student="${safeNameId}"]`);
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
-  if (liveImg) {
+
+  if (existingSlot && liveImg) {
+    // If they already have a slot assigned, simply swap their drawing snapshot!
     liveImg.src = studentData.boardImage;
     return;
   }
 
+  // 2. If it's a brand new student, find the first available layout box that hasn't been claimed yet
   const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
-  let openSlots = [];
+  let bestSlot = null;
 
   if (seeAllBtn && seeAllBtn.parentElement) {
-    openSlots = Array.from(seeAllBtn.parentElement.querySelectorAll('div'))
-                     .filter(box => !box.querySelector('.student-thumb-src') && box !== seeAllBtn && box.offsetWidth > 30);
+    // Look strictly for container elements that don't have a student assigned yet
+    const placeholderBoxes = Array.from(seeAllBtn.parentElement.querySelectorAll('div, .mini-board'))
+                                  .filter(box => box !== seeAllBtn && box.offsetWidth > 30 && !box.hasAttribute('data-student'));
+    if (placeholderBoxes.length > 0) {
+      bestSlot = placeholderBoxes[0];
+    }
   }
 
-  if (openSlots.length === 0) {
-    openSlots = Array.from(document.querySelectorAll('.classroom-container div, .see-all-container + div > div, .mini-board'))
-                     .filter(box => !box.querySelector('.student-thumb-src') && box.offsetWidth > 30);
+  // Fallback search if layout differs
+  if (!bestSlot) {
+    bestSlot = Array.from(document.querySelectorAll('.classroom-container div, .mini-board'))
+                    .filter(box => box.offsetWidth > 30 && !box.hasAttribute('data-student'))[0];
   }
 
-  const bestSlot = openSlots.length > 0 ? openSlots[0] : null;
-
+  // 3. If an open layout slot is found, claim it for this student permanently
   if (bestSlot) {
+    bestSlot.setAttribute('data-student', safeNameId); // 🔒 Lock this slot to this student name!
+    
     bestSlot.style.position = "relative";
     bestSlot.style.display = "block";
     bestSlot.style.overflow = "hidden";
     bestSlot.style.cursor = "pointer";
     bestSlot.style.border = "2px solid #dcdce6";
     bestSlot.style.backgroundColor = "#ffffff";
-    bestSlot.className += " active-student-card";
+    if (!bestSlot.className.includes("active-student-card")) {
+      bestSlot.className += " active-student-card";
+    }
 
     liveImg = document.createElement('img');
     liveImg.id = `thumb-img-${safeNameId}`;
@@ -897,54 +909,37 @@ function renderStudentThumbnailDOM(studentData) {
     bestSlot.addEventListener('click', () => {
       zoomStudentWorkspaceToCanvas(liveImg.src, pupilName);
     });
-  } else {
-    if (seeAllBtn && seeAllBtn.parentElement) {
-      const fallbackCard = document.createElement('div');
-      fallbackCard.className = "active-student-card dynamic-spawn-card";
-      fallbackCard.style.width = "130px";
-      fallbackCard.style.height = "95px";
-      fallbackCard.style.backgroundColor = "#ffffff";
-      fallbackCard.style.border = "2px solid #dcdce6";
-      fallbackCard.style.borderRadius = "8px";
-      fallbackCard.style.cursor = "pointer";
-      fallbackCard.style.position = "relative";
-      fallbackCard.style.overflow = "hidden";
-      fallbackCard.style.display = "inline-block";
-      fallbackCard.style.margin = "0 4px";
-      fallbackCard.style.verticalAlign = "top";
-      
-      const fbImg = document.createElement('img');
-      fbImg.id = `thumb-img-${safeNameId}`;
-      fbImg.className = "student-thumb-src";
-      fbImg.style.width = "100%";
-      fbImg.style.height = "100%";
-      fbImg.style.objectFit = "contain";
-      fbImg.src = studentData.boardImage;
-      fallbackCard.appendChild(fbImg);
-      
-      const fbLabel = document.createElement('div');
-      fbLabel.id = `thumb-name-${safeNameId}`;
-      fbLabel.textContent = pupilName;
-      fbLabel.style.width = "100%";
-      fbLabel.style.backgroundColor = "#4c4c5e";
-      fbLabel.style.color = "#ffffff";
-      fbLabel.style.fontSize = "12px";
-      fbLabel.style.fontWeight = "bold";
-      fbLabel.style.textAlign = "center";
-      fbLabel.style.padding = "4px 0";
-      fbLabel.style.position = "absolute";
-      fbLabel.style.bottom = "0";
-      fbLabel.style.left = "0";
-      fallbackCard.appendChild(fbLabel);
-      
-      fallbackCard.addEventListener('click', () => {
-        zoomStudentWorkspaceToCanvas(fbImg.src, pupilName);
-      });
+  } 
+  // 4. DYNAMIC SPAWNING: If all pre-built boxes are full, grow the list dynamically
+  else if (seeAllBtn && seeAllBtn.parentElement) {
+    const fallbackCard = document.createElement('div');
+    fallbackCard.setAttribute('data-student', safeNameId); // 🔒 Lock fallback card too
+    fallbackCard.className = "active-student-card dynamic-spawn-card";
+    fallbackCard.style.cssText = "width: 130px; height: 95px; background-color: #ffffff; border: 2px solid #dcdce6; border-radius: 8px; cursor: pointer; position: relative; overflow: hidden; display: inline-block; margin: 0 4px; vertical-align: top;";
+    
+    const fbImg = document.createElement('img');
+    fbImg.id = `thumb-img-${safeNameId}`;
+    fbImg.className = "student-thumb-src";
+    fbImg.style.width = "100%";
+    fbImg.style.height = "100%";
+    fbImg.style.objectFit = "contain";
+    fbImg.src = studentData.boardImage;
+    fallbackCard.appendChild(fbImg);
+    
+    const fbLabel = document.createElement('div');
+    fbLabel.id = `thumb-name-${safeNameId}`;
+    fbLabel.textContent = pupilName;
+    fbLabel.style.cssText = "width: 100%; background-color: #4c4c5e; color: #ffffff; font-size: 12px; font-weight: bold; text-align: center; padding: 4px 0; position: absolute; bottom: 0; left: 0;";
+    fallbackCard.appendChild(fbLabel);
+    
+    fallbackCard.addEventListener('click', () => {
+      zoomStudentWorkspaceToCanvas(fbImg.src, pupilName);
+    });
 
-      seeAllBtn.parentElement.appendChild(fallbackCard);
-    }
+    seeAllBtn.parentElement.appendChild(fallbackCard);
   }
 }
+
 
 function zoomStudentWorkspaceToCanvas(imgSrc, pupilName) {
   if (!ctx || !canvas) return;
@@ -990,6 +985,7 @@ function clearStudentThumbnailsDOM() {
     slot.innerHTML = ''; 
     slot.style.position = "";
     slot.style.backgroundImage = "";
+    slot.removeAttribute('data-student'); // 🧼 WIPE STICKY LIFETIME DATA ATTRIBUTES
   });
   document.querySelectorAll('.dynamic-spawn-card').forEach(card => card.remove());
 }
