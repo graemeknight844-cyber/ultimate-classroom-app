@@ -831,7 +831,8 @@ function handleIncomingStudentBoard(studentData) {
 }
 
 function renderStudentThumbnailDOM(studentData) {
-  const pupilName = studentData.name;
+  // 👇 FIXED: Check both property pathways so no student variable gets dropped!
+  const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
   const safeNameId = pupilName.replace(/\s+/g, '-');
   
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
