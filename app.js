@@ -834,29 +834,35 @@ function renderStudentThumbnailDOM(studentData) {
   const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
   const safeNameId = pupilName.replace(/\s+/g, '-');
   
-  // 1. See if this student already has an active thumbnail image on the screen
+  // 1. If this student already has a slot, update their drawing instantly
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
   if (liveImg) {
     liveImg.src = studentData.boardImage;
     return;
   }
 
-  // 2. Find the footer container by looking for your "See All" button
+  // 2. Find the "See All" button to locate our footer dashboard block
   const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
   if (!seeAllBtn || !seeAllBtn.parentElement) return;
 
-  // 3. Grab ALL boxes inside that footer area that are meant to be thumbnails
-  // We filter out the 'See All' button itself and look for boxes with specific dimensions
+  // 3. Find ALL candidate boxes in the footer. 
+  // We avoid tiny internal child containers by ensuring they are direct layout boxes
   const totalFooterBoxes = Array.from(seeAllBtn.parentElement.querySelectorAll('div, .mini-board'))
-                                .filter(box => box !== seeAllBtn && box.offsetWidth > 30);
+                                .filter(box => {
+                                  return box !== seeAllBtn && 
+                                         box.offsetWidth > 50 && 
+                                         box.offsetHeight > 40 && 
+                                         !box.id.startsWith('thumb-name') && // Ignore label strips
+                                         box.tagName === 'DIV';
+                                });
 
-  // 4. Find the first empty box by checking which one DOES NOT have an image inside it yet
-  let bestSlot = totalFooterBoxes.find(box => !box.querySelector('img') && !box.hasAttribute('data-student'));
+  // 4. Find the first box that doesn't belong to any student yet
+  let bestSlot = totalFooterBoxes.find(box => !box.hasAttribute('data-assigned-pupil'));
 
-  // 5. If all pre-built slots are full, or if it missed, fallback to creating a brand new card
+  // 5. If we ran out of pre-built white boxes, build a fresh one automatically!
   if (!bestSlot) {
     const fallbackCard = document.createElement('div');
-    fallbackCard.setAttribute('data-student', safeNameId);
+    fallbackCard.setAttribute('data-assigned-pupil', safeNameId);
     fallbackCard.className = "active-student-card dynamic-spawn-card";
     fallbackCard.style.cssText = "width: 130px; height: 95px; background-color: #ffffff; border: 2px solid #dcdce6; border-radius: 8px; cursor: pointer; position: relative; overflow: hidden; display: inline-block; margin: 0 4px; vertical-align: top;";
     
@@ -883,8 +889,8 @@ function renderStudentThumbnailDOM(studentData) {
     return;
   }
 
-  // 6. Populate the empty pre-built slot cleanly without destroying the outer container layout
-  bestSlot.setAttribute('data-student', safeNameId);
+  // 6. Claim this pre-built box for our current student!
+  bestSlot.setAttribute('data-assigned-pupil', safeNameId);
   bestSlot.style.position = "relative";
   bestSlot.style.display = "block";
   bestSlot.style.overflow = "hidden";
@@ -909,7 +915,7 @@ function renderStudentThumbnailDOM(studentData) {
   nameLabel.textContent = pupilName;
   nameLabel.style.cssText = "width: 100%; background-color: #4c4c5e; color: #ffffff; font-size: 12px; font-weight: bold; text-align: center; padding: 4px 0; position: absolute; bottom: 0; left: 0; z-index: 10; box-sizing: border-box;";
 
-  // Clear inner contents and drop the new elements inside
+  // Safe insertion: clear placeholders and anchor our image + tag
   bestSlot.innerHTML = '';
   bestSlot.appendChild(liveImg);
   bestSlot.appendChild(nameLabel);
@@ -918,7 +924,6 @@ function renderStudentThumbnailDOM(studentData) {
     zoomStudentWorkspaceToCanvas(liveImg.src, pupilName);
   });
 }
-
 
 function zoomStudentWorkspaceToCanvas(imgSrc, pupilName) {
   if (!ctx || !canvas) return;
@@ -964,7 +969,7 @@ function clearStudentThumbnailsDOM() {
     slot.innerHTML = ''; 
     slot.style.position = "";
     slot.style.backgroundImage = "";
-    slot.removeAttribute('data-student'); // 🧼 WIPE STICKY LIFETIME DATA ATTRIBUTES
+    slot.removeAttribute('data-assigned-pupil'); // 🧼 CLEAR THE SLOT LOCK FOR NEXT SESSION
   });
   document.querySelectorAll('.dynamic-spawn-card').forEach(card => card.remove());
 }
