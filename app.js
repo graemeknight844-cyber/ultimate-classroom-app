@@ -1484,3 +1484,14 @@ const startLiveQuizDeckBtn = document.getElementById('startLiveQuizDeckBtn');
 if (startLiveQuizDeckBtn) {
   startLiveQuizDeckBtn.addEventListener('click', startLiveQuizDeck);
 }
+
+// 🚀 Safely wake up the quiz buttons when the page boots up
+if (typeof setupMyQuizButtons === 'function') {
+  setupMyQuizButtons();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof setupMyQuizButtons === 'function') {
+    setupMyQuizButtons();
+  }
+});
