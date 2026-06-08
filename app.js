@@ -834,86 +834,29 @@ function renderStudentThumbnailDOM(studentData) {
   const pupilName = studentData.name || studentData.studentName || "Anonymous Pupil";
   const safeNameId = pupilName.replace(/\s+/g, '-');
   
-  // 1. Check if this student already has a dedicated thumbnail box anywhere on screen
-  let existingSlot = document.querySelector(`[data-student="${safeNameId}"]`);
+  // 1. See if this student already has an active thumbnail image on the screen
   let liveImg = document.getElementById(`thumb-img-${safeNameId}`);
-
-  if (existingSlot && liveImg) {
-    // If they already have a slot assigned, simply swap their drawing snapshot!
+  if (liveImg) {
     liveImg.src = studentData.boardImage;
     return;
   }
 
-  // 2. If it's a brand new student, find the first available layout box that hasn't been claimed yet
+  // 2. Find the footer container by looking for your "See All" button
   const seeAllBtn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('See All'));
-  let bestSlot = null;
+  if (!seeAllBtn || !seeAllBtn.parentElement) return;
 
-  if (seeAllBtn && seeAllBtn.parentElement) {
-    // Look strictly for container elements that don't have a student assigned yet
-    const placeholderBoxes = Array.from(seeAllBtn.parentElement.querySelectorAll('div, .mini-board'))
-                                  .filter(box => box !== seeAllBtn && box.offsetWidth > 30 && !box.hasAttribute('data-student'));
-    if (placeholderBoxes.length > 0) {
-      bestSlot = placeholderBoxes[0];
-    }
-  }
+  // 3. Grab ALL boxes inside that footer area that are meant to be thumbnails
+  // We filter out the 'See All' button itself and look for boxes with specific dimensions
+  const totalFooterBoxes = Array.from(seeAllBtn.parentElement.querySelectorAll('div, .mini-board'))
+                                .filter(box => box !== seeAllBtn && box.offsetWidth > 30);
 
-  // Fallback search if layout differs
+  // 4. Find the first empty box by checking which one DOES NOT have an image inside it yet
+  let bestSlot = totalFooterBoxes.find(box => !box.querySelector('img') && !box.hasAttribute('data-student'));
+
+  // 5. If all pre-built slots are full, or if it missed, fallback to creating a brand new card
   if (!bestSlot) {
-    bestSlot = Array.from(document.querySelectorAll('.classroom-container div, .mini-board'))
-                    .filter(box => box.offsetWidth > 30 && !box.hasAttribute('data-student'))[0];
-  }
-
-  // 3. If an open layout slot is found, claim it for this student permanently
-  if (bestSlot) {
-    bestSlot.setAttribute('data-student', safeNameId); // 🔒 Lock this slot to this student name!
-    
-    bestSlot.style.position = "relative";
-    bestSlot.style.display = "block";
-    bestSlot.style.overflow = "hidden";
-    bestSlot.style.cursor = "pointer";
-    bestSlot.style.border = "2px solid #dcdce6";
-    bestSlot.style.backgroundColor = "#ffffff";
-    if (!bestSlot.className.includes("active-student-card")) {
-      bestSlot.className += " active-student-card";
-    }
-
-    liveImg = document.createElement('img');
-    liveImg.id = `thumb-img-${safeNameId}`;
-    liveImg.className = "student-thumb-src";
-    liveImg.style.width = "100%";
-    liveImg.style.height = "100%";
-    liveImg.style.objectFit = "contain";
-    liveImg.style.display = "block";
-    liveImg.src = studentData.boardImage;
-
-    const nameLabel = document.createElement('div');
-    nameLabel.id = `thumb-name-${safeNameId}`;
-    nameLabel.textContent = pupilName;
-    nameLabel.style.width = "100%";
-    nameLabel.style.backgroundColor = "#4c4c5e"; 
-    nameLabel.style.color = "#ffffff"; 
-    nameLabel.style.fontSize = "12px";
-    nameLabel.style.fontWeight = "bold";
-    nameLabel.style.textAlign = "center";
-    nameLabel.style.padding = "4px 0";
-    nameLabel.style.position = "absolute";
-    nameLabel.style.bottom = "0"; 
-    nameLabel.style.left = "0";
-    nameLabel.style.boxSizing = "border-box";
-    nameLabel.style.zIndex = "10"; 
-
-    bestSlot.innerHTML = '';
-    bestSlot.appendChild(liveImg);
-    bestSlot.appendChild(nameLabel);
-
-    bestSlot.addEventListener('click', () => {
-      zoomStudentWorkspaceToCanvas(liveImg.src, pupilName);
-    });
-  } 
-  // 4. DYNAMIC SPAWNING: If all pre-built boxes are full, grow the list dynamically
-  else if (seeAllBtn && seeAllBtn.parentElement) {
     const fallbackCard = document.createElement('div');
-    fallbackCard.setAttribute('data-student', safeNameId); // 🔒 Lock fallback card too
+    fallbackCard.setAttribute('data-student', safeNameId);
     fallbackCard.className = "active-student-card dynamic-spawn-card";
     fallbackCard.style.cssText = "width: 130px; height: 95px; background-color: #ffffff; border: 2px solid #dcdce6; border-radius: 8px; cursor: pointer; position: relative; overflow: hidden; display: inline-block; margin: 0 4px; vertical-align: top;";
     
@@ -929,7 +872,7 @@ function renderStudentThumbnailDOM(studentData) {
     const fbLabel = document.createElement('div');
     fbLabel.id = `thumb-name-${safeNameId}`;
     fbLabel.textContent = pupilName;
-    fbLabel.style.cssText = "width: 100%; background-color: #4c4c5e; color: #ffffff; font-size: 12px; font-weight: bold; text-align: center; padding: 4px 0; position: absolute; bottom: 0; left: 0;";
+    fbLabel.style.cssText = "width: 100%; background-color: #4c4c5e; color: #ffffff; font-size: 12px; font-weight: bold; text-align: center; padding: 4px 0; position: absolute; bottom: 0; left: 0; z-index: 10; box-sizing: border-box;";
     fallbackCard.appendChild(fbLabel);
     
     fallbackCard.addEventListener('click', () => {
@@ -937,7 +880,43 @@ function renderStudentThumbnailDOM(studentData) {
     });
 
     seeAllBtn.parentElement.appendChild(fallbackCard);
+    return;
   }
+
+  // 6. Populate the empty pre-built slot cleanly without destroying the outer container layout
+  bestSlot.setAttribute('data-student', safeNameId);
+  bestSlot.style.position = "relative";
+  bestSlot.style.display = "block";
+  bestSlot.style.overflow = "hidden";
+  bestSlot.style.cursor = "pointer";
+  bestSlot.style.border = "2px solid #dcdce6";
+  bestSlot.style.backgroundColor = "#ffffff";
+  if (!bestSlot.className.includes("active-student-card")) {
+    bestSlot.className += " active-student-card";
+  }
+
+  liveImg = document.createElement('img');
+  liveImg.id = `thumb-img-${safeNameId}`;
+  liveImg.className = "student-thumb-src";
+  liveImg.style.width = "100%";
+  liveImg.style.height = "100%";
+  liveImg.style.objectFit = "contain";
+  liveImg.style.display = "block";
+  liveImg.src = studentData.boardImage;
+
+  const nameLabel = document.createElement('div');
+  nameLabel.id = `thumb-name-${safeNameId}`;
+  nameLabel.textContent = pupilName;
+  nameLabel.style.cssText = "width: 100%; background-color: #4c4c5e; color: #ffffff; font-size: 12px; font-weight: bold; text-align: center; padding: 4px 0; position: absolute; bottom: 0; left: 0; z-index: 10; box-sizing: border-box;";
+
+  // Clear inner contents and drop the new elements inside
+  bestSlot.innerHTML = '';
+  bestSlot.appendChild(liveImg);
+  bestSlot.appendChild(nameLabel);
+
+  bestSlot.addEventListener('click', () => {
+    zoomStudentWorkspaceToCanvas(liveImg.src, pupilName);
+  });
 }
 
 
