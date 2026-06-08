@@ -1,3 +1,10 @@
+// Global tracking states for the live scoreboard module
+var pupilScore = 0;
+var totalQuizQuestions = 0;
+var currentCorrectAnswerIndex = null;
+var hasAnsweredCurrentQuestion = false;
+
+
 // ==========================================
 // 1. SUPABASE SECURITY & CONNECTION
 // ==========================================
@@ -190,6 +197,17 @@ if (pupilClearBtn && ctx && canvas) {
 function sendBoardSnapshotToTeacher() {
   if (!liveChannel || !canvas) return;
   const snapshotDataUrl = canvas.toDataURL('image/png'); 
+
+// 👇 ADD THIS SCORING LOGIC HERE:
+if (typeof hasAnsweredCurrentQuestion !== 'undefined' && !hasAnsweredCurrentQuestion) {
+  hasAnsweredCurrentQuestion = true; // Lock their answer for this question
+  
+  // If their choice matches the hidden correct index sent by the teacher, award a point!
+  if (typeof currentCorrectAnswerIndex !== 'undefined' && idx === currentCorrectAnswerIndex) {
+    pupilScore = (pupilScore || 0) + 1;
+    console.log("🎯 Correct! Score is now: " + pupilScore);
+  }
+}
 
   liveChannel.send({
     type: 'broadcast',

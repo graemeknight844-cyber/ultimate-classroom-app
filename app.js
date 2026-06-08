@@ -1452,7 +1452,7 @@ function presentActiveQuizQuestionIndex() {
 
   renderLiveQuizBars(false);
 
- // Broadcast out to iPad streams so the multiple choice options load up over there
+  // 👇 PASTE/ENSURE THE BROADCAST IS EXACTLY HERE AT THE BOTTOM OF THIS FUNCTION:
   if (channel) {
     channel.send({
       type: 'broadcast',
@@ -1461,13 +1461,12 @@ function presentActiveQuizQuestionIndex() {
         index: quizState.currentQuestionIndex,
         question: currentQuestion.question,
         options: currentQuestion.options,
-        correctIndex: currentQuestion.correctIndex,    // 👈 ADD THIS LINE
-        totalQuestions: quizState.plannedQueue.length   // 👈 ADD THIS LINE
+        correctIndex: currentQuestion.correctIndex,    // 👈 Hidden correct index for scoring
+        totalQuestions: quizState.plannedQueue.length   // 👈 Total count for the final score
       }
     });
   }
-}
-
+} // 👈 This closing bracket ends the function
 // 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME
 function renderLiveQuizBars(revealAnswerKey = false) {
   const container = document.getElementById('quizStageLiveBarsContainer');
