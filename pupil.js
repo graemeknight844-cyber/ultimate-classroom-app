@@ -1,10 +1,3 @@
-// Global tracking states for the live scoreboard module
-var pupilScore = 0;
-var totalQuizQuestions = 0;
-var currentCorrectAnswerIndex = null;
-var hasAnsweredCurrentQuestion = false;
-
-
 // ==========================================
 // 1. SUPABASE SECURITY & CONNECTION
 // ==========================================
@@ -361,6 +354,16 @@ function startLiveConnection(roomCode) {
           btn.onmouseout = () => { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; };
 
           btn.addEventListener('click', () => {
+            
+            // 👇 SQUEEZE THESE LINES IN HERE (DO NOT DELETE THE REST):
+            if (!hasAnsweredCurrentQuestion) {
+              hasAnsweredCurrentQuestion = true; 
+              if (index === currentCorrectAnswerIndex) {
+                pupilScore++;
+              }
+            }
+            // 👆 END OF NEW LINES
+
             // FIX APPLIED HERE: Sending perfectly matched parameters down the network line!
             liveChannel.send({
               type: 'broadcast',
