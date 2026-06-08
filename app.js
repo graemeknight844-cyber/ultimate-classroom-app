@@ -969,7 +969,7 @@ function clearStudentThumbnailsDOM() {
     slot.innerHTML = ''; 
     slot.style.position = "";
     slot.style.backgroundImage = "";
-    slot.removeAttribute('data-assigned-pupil'); // 🧼 CLEAR THE SLOT LOCK FOR NEXT SESSION
+    slot.removeAttribute('data-assigned-pupil'); // CLEAR THE SLOT LOCK FOR NEXT SESSION
   });
   document.querySelectorAll('.dynamic-spawn-card').forEach(card => card.remove());
 }
@@ -1019,7 +1019,7 @@ function loadBoardState(index) {
 }
 
 // ============================================================================
-// ADVANCED REPORT BOOKLET EXPORT MODULE (With Correct/Incorrect Grid Mapping)
+// ADVANCED REPORT BOOKLET EXPORT MODULE - INDIVIDUAL PUPIL PROFILE GENERATOR
 // ============================================================================
 const exportBtn = document.getElementById('exportBtn');
 if (exportBtn) {
@@ -1027,377 +1027,247 @@ if (exportBtn) {
     saveCurrentBoardState(); 
     
     const { jsPDF } = window.jspdf;
+    // Base format layout
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1100, 520] });
     let isFirstPage = true;
 
-    for (let i = 0; i < boardsData.length; i++) {
-      if (!boardsData[i]) continue;
+    // 1. COMPILE THE MASTER LIST OF ALL UNIQUE PUPILS WHO PARTICIPATED
+    const masterPupilsSet = new Set();
 
+    // Scan whiteboards for student names
+    if (typeof studentSubmissionsHistory !== 'undefined') {
+      studentSubmissionsHistory.forEach(boardData => {
+        if (boardData) Object.keys(boardData).forEach(name => masterPupilsSet.add(name));
+      });
+    }
+
+    // Scan polls for student names
+    if (typeof savedPollsHistory !== 'undefined') {
+      savedPollsHistory.forEach(poll => {
+        if (poll && poll.votes) Object.keys(poll.votes).forEach(name => masterPupilsSet.add(name));
+      });
+    }
+
+    // Scan active quiz states if accessible
+    if (typeof quizState !== 'undefined' && quizState.activeSubmissions) {
+      Object.keys(quizState.activeSubmissions).forEach(name => masterPupilsSet.add(name));
+    }
+
+    const allPupilsList = Array.from(masterPupilsSet).sort();
+
+    // 2. IF NO PUPILS FOUND, CREATE A BLANK FALLBACK SUMMARY PAGE
+    if (allPupilsList.length === 0) {
+      pdf.setFillColor(74, 74, 104); 
+      pdf.rect(0, 0, 1100, 45, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont("Helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.text("LESSON PERFORMANCE SUMMARY REPORT", 30, 28);
+      
+      pdf.setTextColor(120, 120, 130);
+      pdf.setFont("Helvetica", "italic");
+      pdf.setFontSize(14);
+      pdf.text("No active pupil interactions or workspace submissions recorded during this lesson stream.", 45, 120);
+      pdf.save('complete-classroom-lesson-session.pdf');
+      return;
+    }
+
+    // 3. GENERATE DEDICATED PROFILE PAGES FOR EACH INDIVIDUAL PUPIL
+    allPupilsList.forEach((pupilName) => {
+      
+      // --- PAGE 1: WHITEBOARD WORKSPACE SUMMARY ---
       if (!isFirstPage) { pdf.addPage([1100, 520], 'landscape'); }
       isFirstPage = false;
 
+      // Header strip
       pdf.setFillColor(74, 74, 104); 
       pdf.rect(0, 0, 1100, 45, 'F');
       
       pdf.setTextColor(255, 255, 255);
       pdf.setFont("Helvetica", "bold");
       pdf.setFontSize(16);
-      pdf.text(`LESSON SLIDE SHEET ${i + 1} - TEACHER QUESTION/TASK`, 30, 28);
+      pdf.text(`PUPIL PROGRESS PROFILE & PORTFOLIO: ${pupilName.toUpperCase()}`, 30, 28);
 
-      pdf.addImage(boardsData[i], 'PNG', 30, 65, 1040, 435);
+      pdf.setTextColor(40, 40, 60);
+      pdf.setFontSize(14);
+      pdf.text("Section 1: Interactive Whiteboard Workspace Submissions", 30, 75);
 
-      const answersForThisBoard = studentSubmissionsHistory[i] || {};
-      const studentNames = Object.keys(answersForThisBoard);
+      // Render their whiteboard submissions across slide sequences
+      let drawingCountForThisPupil = 0;
+      let xOffset = 30;
+      let yOffset = 95;
+      const boxWidth = 245;
+      const boxHeight = 160;
 
-      if (studentNames.length > 0) {
-        let pupilCellCounter = 0;
+      for (let i = 0; i < boardsData.length; i++) {
+        const answersForThisBoard = studentSubmissionsHistory[i] || {};
+        const pupilImgData = answersForThisBoard[pupilName];
 
-        for (let s = 0; s < studentNames.length; s++) {
-          if (pupilCellCounter % 4 === 0) {
-            pdf.addPage([1100, 520], 'landscape');
-            
-            pdf.setFillColor(90, 90, 115);
-            pdf.rect(0, 0, 1100, 40, 'F');
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFont("Helvetica", "bold");
-            pdf.setFontSize(14);
-            pdf.text(`PUPIL SUBMISSIONS FOR SLIDE SHEET ${i + 1}`, 30, 25);
-          }
-
-          const currentPupilName = studentNames[s];
-          const pupilImgData = answersForThisBoard[currentPupilName];
-
-          const col = pupilCellCounter % 2; 
-          const row = Math.floor((pupilCellCounter % 4) / 2);
-
-          const x = 40 + (col * 530);
-          const y = 65 + (row * 225);
-
-          pdf.setFillColor(245, 245, 250);
-          pdf.rect(x, y, 500, 210, 'F');
-          pdf.setDrawColor(215, 215, 225);
-          pdf.rect(x, y, 500, 210, 'S');
-
-          pdf.setTextColor(50, 50, 70);
-          pdf.setFont("Helvetica", "bold");
-          pdf.setFontSize(13);
-          pdf.text(`Pupil Workspace: ${currentPupilName}`, x + 15, y + 22);
-
-          if (pupilImgData) {
-            pdf.addImage(pupilImgData, 'PNG', x + 15, y + 32, 470, 163);
-          }
-
-          pupilCellCounter++;
+        // Wrap to second row if there are more than 4 boards
+        if (drawingCountForThisPupil > 0 && drawingCountForThisPupil % 4 === 0) {
+          xOffset = 30;
+          yOffset += 195;
         }
+
+        // Draw bounding grid box for each slot
+        pdf.setFillColor(248, 248, 252);
+        pdf.rect(xOffset, yOffset, boxWidth, boxHeight, 'F');
+        pdf.setDrawColor(215, 215, 225);
+        pdf.rect(xOffset, yOffset, boxWidth, boxHeight, 'S');
+
+        pdf.setTextColor(90, 90, 110);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(11);
+        pdf.text(`Slide Sheet ${i + 1} Workspace`, xOffset + 10, yOffset + 16);
+
+        if (pupilImgData) {
+          pdf.addImage(pupilImgData, 'PNG', xOffset + 10, yOffset + 24, boxWidth - 20, boxHeight - 34);
+        } else {
+          pdf.setTextColor(160, 160, 175);
+          pdf.setFont("Helvetica", "italic");
+          pdf.setFontSize(10);
+          pdf.text("[ No Submission Made ]", xOffset + 65, yOffset + 90);
+        }
+
+        xOffset += 265;
+        drawingCountForThisPupil++;
       }
-    }
 
-    if (savedPollsHistory.length > 0) {
-      savedPollsHistory.forEach((poll, index) => {
-        pdf.addPage([1100, 520], 'landscape');
+      // --- SECTION 2: INTERACTIVE ASSESSMENT RESPONSE BREAKDOWN GRID ---
+      let gridY = 310;
+      pdf.setTextColor(40, 40, 60);
+      pdf.setFont("Helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.text("Section 2: Poll Questions & Class Survey Logs", 30, gridY);
+      gridY += 15;
 
-        pdf.setFillColor(46, 204, 113); 
-        pdf.rect(0, 0, 1100, 45, 'F');
+      // Draw table header columns
+      pdf.setFillColor(90, 90, 115);
+      pdf.rect(30, gridY, 1040, 22, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(11);
+      pdf.text("Segment Block", 45, gridY + 15);
+      pdf.text("Core Assessment Question Text", 150, gridY + 15);
+      pdf.text("Pupil Response Selected", 650, gridY + 15);
+      pdf.text("Grade Status", 930, gridY + 15);
+      gridY += 22;
 
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFont("Helvetica", "bold");
-        pdf.setFontSize(16);
-        pdf.text(`SESSION REPORT - COMPLETED CLASSROOM POLL #${index + 1}`, 30, 28);
-
-        pdf.setTextColor(40, 40, 60);
-        pdf.setFont("Helvetica", "bold");
-        pdf.setFontSize(18);
-        pdf.text(`Question Asked: ${poll.question}`, 45, 85);
-
-        const voterNames = Object.keys(poll.votes);
-        const totalVotes = voterNames.length;
-        const tally = {};
-        let totalCorrectAnswersCount = 0;
-
-        poll.options.forEach((_, idx) => tally[idx] = 0);
-        Object.values(poll.votes).forEach(voteIdx => { 
-          if(tally[voteIdx] !== undefined) tally[voteIdx]++; 
-        });
-
-        if (poll.correctAnswerIndex !== undefined && poll.correctAnswerIndex !== -1) {
-          voterNames.forEach(name => {
-            if (poll.votes[name] === poll.correctAnswerIndex) {
-              totalCorrectAnswersCount++;
-            }
-          });
-        }
-
-        const classAccuracyPercentage = totalVotes > 0 ? Math.round((totalCorrectAnswersCount / totalVotes) * 100) : 0;
-
-        pdf.setFont("Helvetica", "normal");
-        pdf.setFontSize(12);
-        pdf.setTextColor(100, 100, 120);
-        
-        let statsLabelString = `Total Registered Responses Collected: ${totalVotes}`;
-        if (poll.correctAnswerIndex !== -1) {
-          statsLabelString += `   |   Overall Classroom Accuracy: ${classAccuracyPercentage}% (${totalCorrectAnswersCount}/${totalVotes})`;
-        }
-        pdf.text(statsLabelString, 45, 105);
-
-        let currentYOffset = 135;
-        poll.options.forEach((optionText, idx) => {
-          const count = tally[idx];
-          const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-          const isThisOptionCorrect = (poll.correctAnswerIndex === idx);
-
-          const finalOptionLabel = isThisOptionCorrect ? `* ${optionText} [CORRECT]` : optionText;
-
-          pdf.setTextColor(isThisOptionCorrect ? 39 : 50, isThisOptionCorrect ? 174 : 50, isThisOptionCorrect ? 96 : 60);
-          pdf.setFont("Helvetica", "bold");
-          pdf.setFontSize(13);
-          pdf.text(finalOptionLabel, 50, currentYOffset + 14);
-
-          pdf.setFillColor(230, 230, 238);
-          pdf.rect(250, currentYOffset, 550, 20, 'F');
-
-          if (percent > 0) {
-            pdf.setFillColor(isThisOptionCorrect ? 46 : 74, isThisOptionCorrect ? 204 : 74, isThisOptionCorrect ? 113 : 104);
-            pdf.rect(250, currentYOffset, (550 * (percent / 100)), 20, 'F');
+      let validPollEntries = 0;
+      if (typeof savedPollsHistory !== 'undefined' && savedPollsHistory.length > 0) {
+        savedPollsHistory.forEach((poll, pIdx) => {
+          if (gridY > 480) {
+            // Add a continuation page if the table grows too tall
+            pdf.addPage([1100, 520], 'landscape');
+            gridY = 50;
           }
 
-          pdf.setTextColor(70, 70, 90);
+          const chosenIndex = poll.votes ? poll.votes[pupilName] : undefined;
+          
+          // Row highlight alternates color
+          if (pIdx % 2 === 0) {
+            pdf.setFillColor(245, 245, 250);
+            pdf.rect(30, gridY, 1040, 20, 'F');
+          }
+          pdf.setDrawColor(225, 225, 235);
+          pdf.rect(30, gridY, 1040, 20, 'S');
+
+          pdf.setTextColor(50, 50, 60);
           pdf.setFont("Helvetica", "bold");
-          pdf.setFontSize(12);
-          pdf.text(`${count} vote(s) (${percent}%)`, 815, currentYOffset + 14);
+          pdf.text(`Poll Activity #${pIdx + 1}`, 45, gridY + 14);
+          
+          pdf.setFont("Helvetica", "normal");
+          // Shorten long strings slightly so they don't break table boundaries
+          const truncatedQuestion = poll.question.length > 75 ? poll.question.substring(0, 72) + "..." : poll.question;
+          pdf.text(truncatedQuestion, 150, gridY + 14);
 
-          currentYOffset += 32; 
+          if (chosenIndex !== undefined && chosenIndex !== null && chosenIndex !== -1) {
+            const chosenText = poll.options[chosenIndex] || `Choice #${chosenIndex}`;
+            pdf.text(chosenText, 650, gridY + 14);
+
+            if (poll.correctAnswerIndex === -1 || poll.correctAnswerIndex === undefined) {
+              pdf.setTextColor(110, 110, 120);
+              pdf.text("Ungraded Survey Entry", 930, gridY + 14);
+            } else if (chosenIndex === poll.correctAnswerIndex) {
+              pdf.setTextColor(39, 174, 96);
+              pdf.setFont("Helvetica", "bold");
+              pdf.text("CORRECT", 930, gridY + 14);
+            } else {
+              pdf.setTextColor(192, 57, 43);
+              pdf.setFont("Helvetica", "bold");
+              pdf.text("INCORRECT", 930, gridY + 14);
+            }
+          } else {
+            pdf.setTextColor(150, 150, 160);
+            pdf.setFont("Helvetica", "italic");
+            pdf.text("No response submitted", 650, gridY + 14);
+            pdf.text("-", 930, gridY + 14);
+          }
+          gridY += 20;
+          validPollEntries++;
         });
+      }
 
-        currentYOffset += 15; 
-        
+      if (validPollEntries === 0) {
+        pdf.setDrawColor(225, 225, 235);
+        pdf.rect(30, gridY, 1040, 20, 'S');
+        pdf.setTextColor(140, 140, 150);
+        pdf.setFont("Helvetica", "italic");
+        pdf.text("No registered class poll responses found for this student.", 45, gridY + 14);
+        gridY += 20;
+      }
+
+      // --- SECTION 3: LIVE QUIZ ANSWERS (ON A NEW PAGE IF PREFERRED OR APPENED BELOW) ---
+      if (typeof savedQuizzesHistory !== 'undefined' && savedQuizzesHistory.length > 0) {
+        gridY += 15;
         pdf.setTextColor(40, 40, 60);
         pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(14);
-        pdf.text("Individual Pupil Response Grid", 45, currentYOffset);
-        currentYOffset += 12;
+        pdf.text("Section 3: Quiz Challenges & Performance Accuracy", 30, gridY);
+        gridY += 15;
 
-        pdf.setFillColor(74, 74, 104);
-        pdf.rect(45, currentYOffset, 1010, 24, 'F');
-
+        pdf.setFillColor(41, 128, 185);
+        pdf.rect(30, gridY, 1040, 22, 'F');
         pdf.setTextColor(255, 255, 255);
-        pdf.setFont("Helvetica", "bold");
         pdf.setFontSize(11);
-        pdf.text("Pupil Name", 60, currentYOffset + 16);
-        pdf.text("Selected Option / Response Given", 350, currentYOffset + 16);
-        pdf.text("Assessment Result", 850, currentYOffset + 16);
+        pdf.text("Quiz Block", 45, gridY + 15);
+        pdf.text("Quiz Core Evaluation Question", 150, gridY + 15);
+        pdf.text("Correct Answer Answer Target", 650, gridY + 15);
+        pdf.text("Class Score Metric", 930, gridY + 15);
+        gridY += 22;
 
-        currentYOffset += 24;
-
-        if (totalVotes === 0) {
-          pdf.setDrawColor(215, 215, 225);
-          pdf.rect(45, currentYOffset, 1010, 24, 'S');
-          pdf.setTextColor(130, 130, 140);
-          pdf.setFont("Helvetica", "italic");
-          pdf.setFontSize(11);
-          pdf.text("No active student submissions recorded for this poll segment.", 60, currentYOffset + 16);
-        } else {
-          voterNames.forEach((studentName, sIdx) => {
-            if (currentYOffset > 480) {
-              pdf.addPage([1100, 520], 'landscape');
-              
-              pdf.setFillColor(90, 90, 115);
-              pdf.rect(0, 0, 1100, 35, 'F');
-              pdf.setTextColor(255, 255, 255);
-              pdf.setFont("Helvetica", "bold");
-              pdf.setFontSize(13);
-              pdf.text(`PUPIL BREAKDOWN MATRIX - POLL #${index + 1} (CONTINUED)`, 30, 22);
-              
-              currentYOffset = 60;
-              pdf.setFillColor(74, 74, 104);
-              pdf.rect(45, currentYOffset, 1010, 24, 'F');
-              pdf.setTextColor(255, 255, 255);
-              pdf.setFont("Helvetica", "bold");
-              pdf.setFontSize(11);
-              pdf.text("Pupil Name", 60, currentYOffset + 16);
-              pdf.text("Selected Option / Response Given", 350, currentYOffset + 16);
-              pdf.text("Assessment Result", 850, currentYOffset + 16);
-              currentYOffset += 24;
-            }
-
-            const chosenIndex = poll.votes[studentName];
-            const isCorrect = (poll.correctAnswerIndex !== -1 && chosenIndex === poll.correctAnswerIndex);
-            const hasNoCorrectCriteriaSet = (poll.correctAnswerIndex === -1);
-
-            if (hasNoCorrectCriteriaSet) {
-              if (sIdx % 2 === 0) {
-                pdf.setFillColor(245, 245, 250);
-                pdf.rect(45, currentYOffset, 1010, 22, 'F');
-              }
-            } else {
-              if (isCorrect) {
-                pdf.setFillColor(233, 247, 239); 
-              } else {
-                pdf.setFillColor(253, 237, 237); 
-              }
-              pdf.rect(45, currentYOffset, 1010, 22, 'F');
-            }
-            
-            pdf.setDrawColor(225, 225, 235);
-            pdf.rect(45, currentYOffset, 1010, 22, 'S');
-
-            pdf.setTextColor(50, 50, 60);
-            pdf.setFont("Helvetica", "bold");
-            pdf.setFontSize(11);
-            pdf.text(studentName, 60, currentYOffset + 15);
-
-            const chosenOptionStringText = poll.options[chosenIndex] || `Unknown Choice (Index ${chosenIndex})`;
-            pdf.setFont("Helvetica", "normal");
-            pdf.text(chosenOptionStringText, 350, currentYOffset + 15);
-
-            if (hasNoCorrectCriteriaSet) {
-              pdf.setTextColor(110, 110, 120);
-              pdf.text("Ungraded Poll Survey", 850, currentYOffset + 15);
-            } else if (isCorrect) {
-              pdf.setTextColor(39, 174, 96); 
-              pdf.setFont("Helvetica", "bold");
-              pdf.text("CORRECT", 850, currentYOffset + 15);
-            } else {
-              pdf.setTextColor(192, 57, 43); 
-              pdf.setFont("Helvetica", "bold");
-              pdf.text("INCORRECT", 850, currentYOffset + 15);
-            }
-
-            currentYOffset += 22; 
-          });
-        }
-      });
-    }
-    
-    // 👇 PASTE THE NEW QUIZ REPORT LOGIC RIGHT HERE:
-    if (typeof savedQuizzesHistory !== 'undefined' && savedQuizzesHistory.length > 0) {
-      savedQuizzesHistory.forEach((quiz, index) => {
-        pdf.addPage([1100, 520], 'landscape');
-
-        pdf.setFillColor(41, 128, 185); 
-        pdf.rect(0, 0, 1100, 45, 'F');
-
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFont("Helvetica", "bold");
-        pdf.setFontSize(16);
-        pdf.text(`SESSION REPORT - COMPLETED LIVE QUIZ QUESTION #${index + 1}`, 30, 28);
-
-        pdf.setTextColor(40, 40, 60);
-        pdf.setFont("Helvetica", "bold");
-        pdf.setFontSize(18);
-        pdf.text(`Quiz Question: ${quiz.question}`, 45, 85);
-
-        pdf.setFont("Helvetica", "normal");
-        pdf.setFontSize(12);
-        pdf.setTextColor(100, 100, 120);
-        pdf.text(`Total Student Submissions Locked: ${quiz.totalPupilsAnswered}   |   Class Performance: ${quiz.classScore}`, 45, 105);
-
-        let currentQuizY = 135;
-        quiz.options.forEach((optionText) => {
-          const isThisCorrect = (optionText === quiz.correctAnswer);
-          const cleanTextLabel = isThisCorrect ? `✓ ${optionText} [CORRECT ANSWER]` : `• ${optionText}`;
-
-          if (isThisCorrect) {
-            pdf.setFillColor(233, 247, 239);
-            pdf.setTextColor(46, 204, 113);
-            pdf.setFont("Helvetica", "bold");
-          } else {
-            pdf.setTextColor(120, 120, 140);
-            pdf.setFont("Helvetica", "normal");
+        savedQuizzesHistory.forEach((quiz, qIdx) => {
+          if (gridY > 480) {
+            pdf.addPage([1100, 520], 'landscape');
+            gridY = 50;
           }
-          
-          pdf.setFontSize(13);
-          pdf.text(cleanTextLabel, 55, currentQuizY + 12);
-          currentQuizY += 25;
-        });
-      });
-    }
-    // 👆 END OF NEW QUIZ REPORT LOGIC
 
+          if (qIdx % 2 === 0) {
+            pdf.setFillColor(240, 246, 250);
+            pdf.rect(30, gridY, 1040, 20, 'F');
+          }
+          pdf.setDrawColor(210, 225, 240);
+          pdf.rect(30, gridY, 1040, 20, 'S');
+
+          pdf.setTextColor(40, 40, 60);
+          pdf.setFont("Helvetica", "bold");
+          pdf.text(`Quiz Item #${qIdx + 1}`, 45, gridY + 14);
+
+          pdf.setFont("Helvetica", "normal");
+          const trunQuizText = quiz.question.length > 75 ? quiz.question.substring(0, 72) + "..." : quiz.question;
+          pdf.text(trunQuizText, 150, gridY + 14);
+          pdf.text(quiz.correctAnswer || "Not set", 650, gridY + 14);
+          
+          pdf.setTextColor(100, 100, 120);
+          pdf.text(quiz.classScore || "100%", 930, gridY + 14);
+
+          gridY += 20;
+        });
+      }
+    });
+
+    // Save out the fully targeted performance report file
     pdf.save('complete-classroom-lesson-session.pdf');
   });
-}
-
-// ============================================================================
-// AUTOMATED QUIZ ENGINE LOGIC (Collision-Free Module Stream)
-// ============================================================================
-
-// Centralized handler decoupled from whiteboard streams
-function handleIncomingQuizResponse(payload) {
-  if (!quizState.isActive) return;
-
-  const studentName = payload.studentName || "Anonymous Pupil";
-  const chosenIndex = parseInt(payload.chosenIndex);
-
-  quizState.activeSubmissions[studentName] = chosenIndex;
-
-  if (typeof renderLiveQuizBars === 'function') {
-    renderLiveQuizBars();
-  }
-}
-
-// Setup and wire the Quiz interactive panels explicitly
-function setupMyQuizButtons() {
-  const addBtn = document.getElementById('addQuestionToBankBtn');
-
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const qInput = document.getElementById('quizQuestionInput');
-      const opt0 = document.getElementById('quizOpt0');
-      const opt1 = document.getElementById('quizOpt1');
-      const opt2 = document.getElementById('quizOpt2');
-      const opt3 = document.getElementById('quizOpt3');
-      const radios = document.getElementsByName('quizCorrectRadio');
-
-      if (!qInput || !qInput.value.trim()) {
-        alert("Please type a question first before saving!");
-        return;
-      }
-
-      let correctIdx = 0;
-      for (let i = 0; i < radios.length; i++) {
-        if (radios[i].checked) {
-          correctIdx = i;
-          break;
-        }
-      }
-
-      const newQuestionCard = {
-        question: qInput.value.trim(),
-        options: [
-          opt0?.value.trim() || "Option A",
-          opt1?.value.trim() || "Option B",
-          opt2?.value.trim() || "Option C",
-          opt3?.value.trim() || "Option D"
-        ],
-        correctIndex: correctIdx
-      };
-
-      quizState.plannedQueue.push(newQuestionCard);
-
-      qInput.value = "";
-      if (opt0) opt0.value = "";
-      if (opt1) opt1.value = "";
-      if (opt2) opt2.value = "";
-      if (opt3) opt3.value = "";
-
-      const countBadge = document.getElementById('quizBankCountBadge');
-      if (countBadge) {
-        countBadge.innerText = `${quizState.plannedQueue.length} Questions Saved`;
-      }
-
-      const container = document.getElementById('quizPersistentBankContainer');
-      if (container) {
-        container.innerHTML = quizState.plannedQueue.map((item, idx) => `
-          <div style="background: #34495e; padding: 8px 12px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; color: #fff;">
-            <span><strong>${idx + 1}.</strong> ${item.question}</span>
-            <span style="color: #2ecc71; font-weight: bold; font-size: 11px;">Staged</span>
-          </div>
-        `).join('');
-      }
-
-      alert("✓ Question added to your session deck successfully!");
-    });
-  }
 }
 
 // ============================================================================
