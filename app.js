@@ -1487,14 +1487,3 @@ if (startLiveQuizDeckBtn) {
   startLiveQuizDeckBtn.addEventListener('click', startLiveQuizDeck);
 }
 
-// 🚀 ACTIVATE THE QUIZ BUTTON LISTENERS ON PAGE LOAD
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof setupMyQuizButtons === 'function') {
-    setupMyQuizButtons();
-  }
-});
-
-// Run it directly just in case the page is already loaded
-if (typeof setupMyQuizButtons === 'function') {
-  setupMyQuizButtons();
-}
