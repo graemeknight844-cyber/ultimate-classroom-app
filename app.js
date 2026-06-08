@@ -34,6 +34,9 @@ let pollActive = false;
 let activePollData = { question: '', options: [], votes: {} };
 let savedPollsHistory = []; // Keeps track of completed polls for the PDF export
 
+// Analytics archive container for lesson PDF summary report outputs
+let savedQuizzesHistory = [];
+
 // AUTOMATED QUIZ SYSTEM STATE VARIABLES
 let quizState = {
   isActive: false,           // Is the live fullscreen presentation running?
@@ -1284,6 +1287,51 @@ if (exportBtn) {
       });
     }
     
+    // 👇 PASTE THE NEW QUIZ REPORT LOGIC RIGHT HERE:
+    if (typeof savedQuizzesHistory !== 'undefined' && savedQuizzesHistory.length > 0) {
+      savedQuizzesHistory.forEach((quiz, index) => {
+        pdf.addPage([1100, 520], 'landscape');
+
+        pdf.setFillColor(41, 128, 185); 
+        pdf.rect(0, 0, 1100, 45, 'F');
+
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text(`SESSION REPORT - COMPLETED LIVE QUIZ QUESTION #${index + 1}`, 30, 28);
+
+        pdf.setTextColor(40, 40, 60);
+        pdf.setFont("Helvetica", "bold");
+        pdf.setFontSize(18);
+        pdf.text(`Quiz Question: ${quiz.question}`, 45, 85);
+
+        pdf.setFont("Helvetica", "normal");
+        pdf.setFontSize(12);
+        pdf.setTextColor(100, 100, 120);
+        pdf.text(`Total Student Submissions Locked: ${quiz.totalPupilsAnswered}   |   Class Performance: ${quiz.classScore}`, 45, 105);
+
+        let currentQuizY = 135;
+        quiz.options.forEach((optionText) => {
+          const isThisCorrect = (optionText === quiz.correctAnswer);
+          const cleanTextLabel = isThisCorrect ? `✓ ${optionText} [CORRECT ANSWER]` : `• ${optionText}`;
+
+          if (isThisCorrect) {
+            pdf.setFillColor(233, 247, 239);
+            pdf.setTextColor(46, 204, 113);
+            pdf.setFont("Helvetica", "bold");
+          } else {
+            pdf.setTextColor(120, 120, 140);
+            pdf.setFont("Helvetica", "normal");
+          }
+          
+          pdf.setFontSize(13);
+          pdf.text(cleanTextLabel, 55, currentQuizY + 12);
+          currentQuizY += 25;
+        });
+      });
+    }
+    // 👆 END OF NEW QUIZ REPORT LOGIC
+
     pdf.save('complete-classroom-lesson-session.pdf');
   });
 }
@@ -1518,6 +1566,35 @@ function renderLiveQuizBars(revealAnswerKey = false) {
 // 4. DISPLAY CORRECT ANSWER SELECTION
 function revealCorrectQuizAnswer() {
   renderLiveQuizBars(true);
+
+  // 👇 ADD THIS ANALYTICS SNAPSHOT LOGIC RIGHT HERE:
+  const currentQuestion = quizState.plannedQueue[quizState.currentQuestionIndex];
+  if (currentQuestion) {
+    // 1. Calculate how many total answers were submitted by the class
+    const totalSubmissions = Object.keys(quizState.activeSubmissions || {}).length;
+    let correctCount = 0;
+
+    // 2. Count how many pupils chose the correct index
+    Object.values(quizState.activeSubmissions || {}).forEach(chosenIndex => {
+      if (chosenIndex === currentQuestion.correctIndex) {
+        correctCount++;
+      }
+    });
+
+    // 3. Turn it into a clean class performance percentage
+    const successPercentage = totalSubmissions > 0 ? Math.round((correctCount / totalSubmissions) * 100) : 0;
+
+    // 4. Save this snapshot into our global archive array for the PDF writer
+    savedQuizzesHistory.push({
+      question: currentQuestion.question,
+      options: currentQuestion.options,
+      correctAnswer: currentQuestion.options[currentQuestion.correctIndex],
+      totalPupilsAnswered: totalSubmissions,
+      classScore: `${correctCount}/${totalSubmissions} (${successPercentage}% Correct)`
+    });
+
+    console.log("📊 Quiz question performance archived for PDF export:", currentQuestion.question);
+  }
 }
 
 // 5. PROCEED TO NEXT QUEUED TASK SLIDE
