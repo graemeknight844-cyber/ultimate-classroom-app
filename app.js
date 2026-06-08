@@ -1277,7 +1277,12 @@ function setupMyQuizButtons() {
   const addBtn = document.getElementById('addQuestionToBankBtn');
 
   if (addBtn) {
-    addBtn.addEventListener('click', () => {
+    // 🧼 Wipes away any stacked duplicate listeners hiding in browser memory
+    const newCleanBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newCleanBtn, addBtn);
+    
+    // Wire the click rule exclusively to our fresh, single-fire button
+    newCleanBtn.addEventListener('click', () => {
       const qInput = document.getElementById('quizQuestionInput');
       const opt0 = document.getElementById('quizOpt0');
       const opt1 = document.getElementById('quizOpt1');
@@ -1309,7 +1314,6 @@ function setupMyQuizButtons() {
         correctIndex: correctIdx
       };
 
-      // Ensure the array state exists before pushing
       if (typeof quizState === 'undefined') window.quizState = {};
       if (!quizState.plannedQueue) quizState.plannedQueue = [];
       
