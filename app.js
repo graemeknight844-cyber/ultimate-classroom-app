@@ -1525,20 +1525,46 @@ function renderLiveQuizBars(revealAnswerKey = false) {
   });
 }
 
-// 4. DISPLAY CORRECT ANSWER SELECTION
+// 4. DISPLAY CORRECT ANSWER SELECTION & TRANSMIT COLOR SIGNALS TO IPADS
 function revealCorrectQuizAnswer() {
+  // Update the teacher's live bar graph interface colors
   renderLiveQuizBars(true);
 
-  // 👇 ADD THIS ANALYTICS SNAPSHOT LOGIC RIGHT HERE:
   const currentQuestion = quizState.plannedQueue[quizState.currentQuestionIndex];
+  
   if (currentQuestion) {
+    // Normalize correct answers into an array format seamlessly 
+    // This supports both old single-answer questions and new multi-answer questions!
+    let targetIndices = [];
+    if (Array.isArray(currentQuestion.correctIndices)) {
+      targetIndices = currentQuestion.correctIndices;
+    } else if (typeof currentQuestion.correctIndex !== 'undefined') {
+      targetIndices = [currentQuestion.correctIndex];
+    }
+
+    // 📡 1. BROADCAST SIGNAL: Transmit the answer key down to the pupil iPads instantly
+    if (channel) {
+      channel.send({
+        type: 'broadcast',
+        event: 'reveal-quiz-answer',
+        payload: {
+          correctIndices: targetIndices
+        }
+      });
+      console.log("📡 Sent reveal-quiz-answer event to iPads with indices:", targetIndices);
+    }
+
+    // ========================================================================
+    // 📊 ANALYTICS SNAPSHOT LOGIC (UPDATED FOR MULTI-CHOICE ACCURACY)
+    // ========================================================================
+    
     // 1. Calculate how many total answers were submitted by the class
     const totalSubmissions = Object.keys(quizState.activeSubmissions || {}).length;
     let correctCount = 0;
 
-    // 2. Count how many pupils chose the correct index
+    // 2. Count how many pupils chose a correct option index inside our array matrix
     Object.values(quizState.activeSubmissions || {}).forEach(chosenIndex => {
-      if (chosenIndex === currentQuestion.correctIndex) {
+      if (targetIndices.includes(chosenIndex)) {
         correctCount++;
       }
     });
@@ -1546,11 +1572,14 @@ function revealCorrectQuizAnswer() {
     // 3. Turn it into a clean class performance percentage
     const successPercentage = totalSubmissions > 0 ? Math.round((correctCount / totalSubmissions) * 100) : 0;
 
+    // Map out human-readable answer strings for the PDF table column (e.g., "Option A, Option C")
+    const answerLabels = targetIndices.map(i => currentQuestion.options[i]).join(', ');
+
     // 4. Save this snapshot into our global archive array for the PDF writer
     savedQuizzesHistory.push({
       question: currentQuestion.question,
       options: currentQuestion.options,
-      correctAnswer: currentQuestion.options[currentQuestion.correctIndex],
+      correctAnswer: answerLabels || "Not set",
       totalPupilsAnswered: totalSubmissions,
       classScore: `${correctCount}/${totalSubmissions} (${successPercentage}% Correct)`
     });
