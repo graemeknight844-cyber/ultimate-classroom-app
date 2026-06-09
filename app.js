@@ -1359,7 +1359,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // AUTOMATED QUIZ LIVE DELIVERY MODULE (PRESENTATION & LIVE STATS)
 // ============================================================================
 
-// 1. LAUNCH THE ACTIVE LIVE DECK SCREEN (COUNTDOWN INTEGRATED)
+// 1. LAUNCH THE ACTIVE LIVE DECK SCREEN (COUNTDOWN INTEGRATED & INSULATED)
 function startLiveQuizDeck() {
   if (!quizState || quizState.plannedQueue.length === 0) {
     alert("Your question deck is empty! Please create and save at least one question first.");
@@ -1392,15 +1392,15 @@ function startLiveQuizDeck() {
   // Render the interface inside the live arena stage overlay
   liveStage.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2c2c3e; padding-bottom: 15px;">
-      <div>
+      <div style="display: flex; align-items: center;">
         <span style="background: #e74c3c; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-right: 10px;">Live Arena</span>
         <span id="quizStageProgressTracker" style="font-size: 16px; font-weight: 600; color: #a0a0c0;">Question 1 of ${quizState.plannedQueue.length}</span>
+        <span id="quizStageStatusMessage" style="color: #e67e22; font-weight: bold; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-left: 20px;">⏳ Pupils Preparing...</span>
       </div>
       <button id="closeLiveQuizArenaBtn" style="background: #c0392b; color: white; border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer;">End Session</button>
     </div>
 
     <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; max-width: 1000px; margin: 0 auto; width: 100%; padding: 40px 0;">
-      <div id="quizStageStatusMessage" style="color: #e67e22; font-weight: bold; font-size: 18px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;">⏳ Pupils Preparing...</div>
       <h1 id="quizStageQuestionHeader" style="font-size: 32px; font-weight: bold; margin-bottom: 30px; line-height: 1.3; color: #fff;">Loading...</h1>
       <div id="quizStageLiveBarsContainer" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;"></div>
     </div>
@@ -1431,17 +1431,18 @@ function presentActiveQuizQuestionIndex() {
 
   quizState.activeSubmissions = {}; // Clear responses for the new question
 
+  // UI Setup on Teacher Stage
   document.getElementById('quizStageProgressTracker').textContent = `Question ${quizState.currentQuestionIndex + 1} of ${quizState.plannedQueue.length}`;
   document.getElementById('quizStageQuestionHeader').textContent = currentQuestion.question;
   document.getElementById('quizStageSubmissionCounter').textContent = "0";
   
-  // Set the teacher screen notice to show that a countdown is happening
+  // Update status message safety check
   const statusMsg = document.getElementById('quizStageStatusMessage');
   if (statusMsg) statusMsg.innerHTML = "⏳ Pupils Preparing (3s Countdown Running)...";
 
   renderLiveQuizBars(false);
 
-  // 📡 BROADCAST PHASE A: Tell student devices to enter locked countdown state
+  // 📡 BROADCAST: Send payload to student devices with required validation markers
   if (channel) {
     channel.send({
       type: 'broadcast',
@@ -1450,12 +1451,21 @@ function presentActiveQuizQuestionIndex() {
         index: quizState.currentQuestionIndex,
         question: currentQuestion.question,
         options: currentQuestion.options,
-        correctIndex: currentQuestion.correctIndex,
-        totalQuestions: quizState.plannedQueue.length,
-        runCountdown: true // 👈 Enforces the 3-2-1 rule on pupil screens
+        correctIndex: currentQuestion.correctIndex,    // Included for answer processing
+        totalQuestions: quizState.plannedQueue.length,   // Included for scorecard rendering
+        runCountdown: true 
       }
     });
   }
+
+  // ⏱️ TEACHER SIDE TIMEOUT: Transition status cleanly at 3s
+  setTimeout(() => {
+    const liveStatus = document.getElementById('quizStageStatusMessage');
+    if (liveStatus && quizState.isActive) {
+      liveStatus.innerHTML = "🟢 QUIZ LIVE - RESPONSES OPEN";
+    }
+  }, 3000);
+}
 
   // ⏱️ TEACHER SIDE TIMEOUT: Automatically switch status when countdown finishes
   setTimeout(() => {
@@ -1464,7 +1474,7 @@ function presentActiveQuizQuestionIndex() {
       liveStatus.innerHTML = "🟢 QUIZ LIVE - RESPONSES OPEN";
     }
   }, 3000);
-}
+
 
 // 👈 This closing bracket ends the function
 // 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME
