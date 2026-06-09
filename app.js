@@ -1479,7 +1479,6 @@ function presentActiveQuizQuestionIndex() {
 
 
 
-// 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME (FIXED FOR MULTI-CHOICE SELECTION)
 function renderLiveQuizBars(revealAnswerKey = false) {
   const container = document.getElementById('quizStageLiveBarsContainer');
   if (!container) return;
@@ -1487,18 +1486,50 @@ function renderLiveQuizBars(revealAnswerKey = false) {
   const currentQuestion = quizState.plannedQueue[quizState.currentQuestionIndex];
   if (!currentQuestion) return;
 
-  const studentAnswersArray = Object.values(quizState.activeSubmissions);
-  const totalSubmissionsCount = studentAnswersArray.length;
+  // ========================================================================
+  // 📊 EXTRACTION & MULTI-VOTE TALLY PROCESSING ENGINE
+  // ========================================================================
+  const studentAnswersArray = Object.values(quizState.activeSubmissions || {});
 
+  // 🎯 FIX: Count how many individual pupils have locked in at least one choice
+  const totalSubmissionsCount = studentAnswersArray.length;
   const labelCounter = document.getElementById('quizStageSubmissionCounter');
   if (labelCounter) labelCounter.textContent = totalSubmissionsCount;
 
+  // Initialize clear integer keys for your 4 options
   const tally = { 0: 0, 1: 0, 2: 0, 3: 0 };
-  studentAnswersArray.forEach(idx => { if (tally[idx] !== undefined) tally[idx]++; });
+  
+  // Track total votes cast across all options to calculate percentage splits accurately
+  let totalVotesCast = 0; 
 
-  container.innerHTML = '';
+  // 🎯 BULLETPROOF VOTE UNPACKER: Forces all strings/numbers to matching integers
+  studentAnswersArray.forEach(val => { 
+    if (val === null || val === undefined) return;
 
-  // 🎯 MATRIX RESOLVER: Builds a uniform array for both single and multi-answer cards
+    if (Array.isArray(val)) {
+      // If it's a multi-answer array (e.g., [2, 3] or ["2", "3"])
+      val.forEach(idx => { 
+        const cleanIdx = parseInt(idx, 10);
+        if (!isNaN(cleanIdx) && tally[cleanIdx] !== undefined) {
+          tally[cleanIdx]++;
+          totalVotesCast++;
+        }
+      });
+    } else {
+      // If it's a single-answer value (e.g., 2 or "2")
+      const cleanIdx = parseInt(val, 10);
+      if (!isNaN(cleanIdx) && tally[cleanIdx] !== undefined) {
+        tally[cleanIdx]++; 
+        totalVotesCast++;
+      }
+    }
+  });
+
+  container.innerHTML = ''; // Clears the stage layout before drawing the updated bars
+
+  // ... (the rest of your loop that creates the visual div bars goes right here!)
+
+  // MATRIX RESOLVER: Builds a uniform array for both single and multi-answer cards
   let targetIndices = [];
   if (Array.isArray(currentQuestion.correctIndices)) {
     targetIndices = currentQuestion.correctIndices;
@@ -1555,7 +1586,7 @@ function revealCorrectQuizAnswer() {
       targetIndices = [currentQuestion.correctIndex];
     }
 
-    // 📡 1. BROADCAST SIGNAL: Transmit the answer key down to the pupil iPads instantly
+    // 1. BROADCAST SIGNAL: Transmit the answer key down to the pupil iPads instantly
     if (channel) {
       channel.send({
         type: 'broadcast',
@@ -1564,11 +1595,11 @@ function revealCorrectQuizAnswer() {
           correctIndices: targetIndices
         }
       });
-      console.log("📡 Sent reveal-quiz-answer event to iPads with indices:", targetIndices);
+      console.log("Sent reveal-quiz-answer event to iPads with indices:", targetIndices);
     }
 
     // ========================================================================
-    // 📊 ANALYTICS SNAPSHOT LOGIC (UPDATED FOR MULTI-CHOICE ACCURACY)
+    // ANALYTICS SNAPSHOT LOGIC (UPDATED FOR MULTI-CHOICE ACCURACY)
     // ========================================================================
     
     // 1. Calculate how many total answers were submitted by the class
@@ -1597,7 +1628,7 @@ function revealCorrectQuizAnswer() {
       classScore: `${correctCount}/${totalSubmissions} (${successPercentage}% Correct)`
     });
 
-    console.log("📊 Quiz question performance archived for PDF export:", currentQuestion.question);
+    console.log("Quiz question performance archived for PDF export:", currentQuestion.question);
   }
 }
 
@@ -1608,10 +1639,10 @@ function advanceQuizDeckNext() {
     quizState.currentQuestionIndex++;
     presentActiveQuizQuestionIndex();
   } else {
-    // 🏁 Last question reached! 
+    // Last question reached! 
     console.log("Final question completed. Routing all devices back via terminateLiveQuizDeck.");
     
-    // 🎯 Trigger your working end sequence immediately
+    // Trigger your working end sequence immediately
     terminateLiveQuizDeck();
 
     // Pop the completion alert at the very end so it doesn't freeze the screen state transitions
