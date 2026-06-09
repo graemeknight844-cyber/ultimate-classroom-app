@@ -1595,8 +1595,8 @@ function advanceQuizDeckNext() {
     quizState.currentQuestionIndex++;
     presentActiveQuizQuestionIndex();
   } else {
-    // 🏁 Last question reached! Cleanly sync up and shut down the arena for everyone
-    console.log("🏁 Final question completed. Routing all devices back to whiteboard view.");
+    // Last question reached! Cleanly sync up and shut down the arena for everyone
+    console.log("Final question completed. Routing all devices back to whiteboard view.");
     
     // 1. Explicitly clear out student screens first before popping up any modal alerts
     if (channel) {
@@ -1604,7 +1604,7 @@ function advanceQuizDeckNext() {
         type: 'broadcast', 
         event: 'clear-live-quiz' 
       });
-      console.log("📡 Broadcasted clear signal to all student devices successfully.");
+      console.log("Broadcasted clear signal to all student devices successfully.");
     }
 
     // 2. Clear out teacher live flags
@@ -1619,7 +1619,7 @@ function advanceQuizDeckNext() {
 
     // 4. Pop the completion alert at the very end so it doesn't hijack the network pipeline
     setTimeout(() => {
-      alert("🏁 That was the last question! The live session has concluded, and all pupils have been returned to the Whiteboard view.");
+      alert("That was the last question! The live session has concluded, and all pupils have been returned to the Whiteboard view.");
     }, 100);
   }
 }

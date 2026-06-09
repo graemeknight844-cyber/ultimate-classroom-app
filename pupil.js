@@ -481,6 +481,24 @@ function startLiveConnection(roomCode) {
     })
 
     // ========================================================================
+    // NEWLY ADDED: CLEAR QUIZ LISTENER (RETURNS PUPILS TO WHITEBOARD)
+    // ========================================================================
+    .on('broadcast', { event: 'clear-live-quiz' }, () => {
+      if (!pupilWhiteboardView || !pupilQuizView) return;
+      
+      console.log("Quiz ended by teacher. Dropping back to Whiteboard.");
+      
+      // Toggle views instantly
+      pupilQuizView.style.display = 'none';
+      if (pupilPollView) pupilPollView.style.display = 'none';
+      pupilWhiteboardView.style.display = 'block';
+      
+      // Clean up local states for the next round
+      studentChosenIndex = null;
+      hasAnsweredCurrentQuestion = false;
+    })
+
+    // ========================================================================
     // PIPELINE SUBSCRIPTION IGNITION CORE
     // ========================================================================
     .subscribe((status) => {
