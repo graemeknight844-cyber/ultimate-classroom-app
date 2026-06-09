@@ -1588,14 +1588,39 @@ function revealCorrectQuizAnswer() {
   }
 }
 
-// 5. PROCEED TO NEXT QUEUED TASK SLIDE
+// 5. PROCEED TO NEXT QUEUED TASK SLIDE (WITH FIXED END-OF-DECK HANDOFF)
 function advanceQuizDeckNext() {
   if (quizState.currentQuestionIndex + 1 < quizState.plannedQueue.length) {
+    // There are still questions left, advance normally
     quizState.currentQuestionIndex++;
     presentActiveQuizQuestionIndex();
   } else {
-    alert("🏁 That was the last question in your saved quiz deck!");
-    terminateLiveQuizDeck();
+    // 🏁 Last question reached! Cleanly sync up and shut down the arena for everyone
+    console.log("🏁 Final question completed. Routing all devices back to whiteboard view.");
+    
+    // 1. Explicitly clear out student screens first before popping up any modal alerts
+    if (channel) {
+      channel.send({ 
+        type: 'broadcast', 
+        event: 'clear-live-quiz' 
+      });
+      console.log("📡 Broadcasted clear signal to all student devices successfully.");
+    }
+
+    // 2. Clear out teacher live flags
+    quizState.isActive = false;
+    
+    // 3. Hide the live stage overlay and reveal the master classroom views
+    const liveStage = document.getElementById('quizLivePresentationStage');
+    if (liveStage) liveStage.style.display = 'none';
+
+    const whiteboardView = document.getElementById('teacherWhiteboardView');
+    if (whiteboardView) whiteboardView.style.display = 'block';
+
+    // 4. Pop the completion alert at the very end so it doesn't hijack the network pipeline
+    setTimeout(() => {
+      alert("🏁 That was the last question! The live session has concluded, and all pupils have been returned to the Whiteboard view.");
+    }, 100);
   }
 }
 
