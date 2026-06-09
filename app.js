@@ -1680,7 +1680,7 @@ if (startLiveQuizDeckBtn) {
 
 
 // ============================================================================
-// SUBSCRIBED NETWORK DATA PARSER: QUIZ RESPONSE HANDLER
+// SUBSCRIBED NETWORK DATA PARSER: QUIZ RESPONSE HANDLER (FULLY FIXED)
 // ============================================================================
 function handleIncomingQuizResponse(payload) {
   // 1. Safety check: Exit if the quiz state isn't initialized or running
@@ -1689,20 +1689,27 @@ function handleIncomingQuizResponse(payload) {
     return;
   }
 
-  // 2. Ensure we have a valid index integer from the payload
+  // 2. Ensure we have a valid index selection object from the payload
   if (payload === null || typeof payload.chosenIndex === 'undefined') return;
-  const chosenChoiceIndex = parseInt(payload.chosenIndex, 10);
 
   // 3. Extract the pupil's name or assign a reliable fallback token
   const keyName = (payload.studentName && payload.studentName.trim() !== "") 
                   ? payload.studentName.trim() 
                   : "Anonymous_Pupil_" + Math.random().toString(36).substring(2, 7);
 
-  // 4. Record or update the submission within the global application state object
   if (!quizState.activeSubmissions) quizState.activeSubmissions = {};
-  quizState.activeSubmissions[keyName] = chosenChoiceIndex;
 
-  console.log(`✅ Logged vote for choice index [${chosenChoiceIndex}] from user: ${keyName}`);
+  // 🎯 FIXED DATA COMPLIANCE LAYER: Check if the incoming variable is an array or a single choice
+  if (Array.isArray(payload.chosenIndex)) {
+    // Multi-answer: Map elements to raw integers and save them cleanly as an array
+    quizState.activeSubmissions[keyName] = payload.chosenIndex.map(idx => parseInt(idx, 10));
+    console.log(`✅ Logged Multi-Vote array [${quizState.activeSubmissions[keyName].join(', ')}] from user: ${keyName}`);
+  } else {
+    // Single answer: Parse out the single integer value directly
+    const singleIdx = parseInt(payload.chosenIndex, 10);
+    quizState.activeSubmissions[keyName] = singleIdx;
+    console.log(`✅ Logged Single Vote [${singleIdx}] from user: ${keyName}`);
+  }
 
   // 5. Instantly force-refresh the live charts (updates the UI counter badge)
   if (typeof renderLiveQuizBars === 'function') {
