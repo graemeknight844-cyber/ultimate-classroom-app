@@ -62,8 +62,9 @@ if (ctx && pupilPenColor) {
 // Local tracking variables for the quiz scoreboard
 let pupilScore = 0;
 let totalQuizQuestions = 0;
-let currentCorrectAnswerIndex = null;
+let currentCorrectAnswerIndices = []; // Re-wired to track an array of answers
 let hasAnsweredCurrentQuestion = false;
+let studentChosenIndex = null;        // Tracks exactly what choice the user selected
 
 // ==========================================
 // 4. LISTEN FOR THE "JOIN CLASS" BUTTON CLICK
@@ -191,17 +192,6 @@ function sendBoardSnapshotToTeacher() {
   if (!liveChannel || !canvas) return;
   const snapshotDataUrl = canvas.toDataURL('image/png'); 
 
-// 👇 ADD THIS SCORING LOGIC HERE:
-if (typeof hasAnsweredCurrentQuestion !== 'undefined' && !hasAnsweredCurrentQuestion) {
-  hasAnsweredCurrentQuestion = true; // Lock their answer for this question
-  
-  // If their choice matches the hidden correct index sent by the teacher, award a point!
-  if (typeof currentCorrectAnswerIndex !== 'undefined' && idx === currentCorrectAnswerIndex) {
-    pupilScore = (pupilScore || 0) + 1;
-    console.log("🎯 Correct! Score is now: " + pupilScore);
-  }
-}
-
   liveChannel.send({
     type: 'broadcast',
     event: 'submit-answer',
@@ -313,23 +303,26 @@ function startLiveConnection(roomCode) {
       pupilWhiteboardView.style.display = 'block';
     })
 
-    /// ========================================================================
+    // ========================================================================
     // LIVE QUIZ INTERCEPT NETWORK ROUTING LAYERS
     // ========================================================================
     .on('broadcast', { event: 'start-live-quiz' }, ({ payload }) => {
-      // 1. Existing safety checks stay exactly as they are
       if (!pupilWhiteboardView || !pupilQuizView || !pupilQuizQuestion || !pupilQuizOptions) return;
       if (pupilPollView) pupilPollView.style.display = 'none'; 
 
-      // 2. State tracking configurations
-      currentCorrectAnswerIndex = payload.correctIndex;
+      // Clear tracking variables for the new question
       totalQuizQuestions = payload.totalQuestions;
       hasAnsweredCurrentQuestion = false; 
+      studentChosenIndex = null; // Wipe past choice layout histories
 
-      // 3. Setup views and presentation text layers
+      // Hide status tracking element completely (Clean layout)
+      if (pupilQuizStatus) {
+        pupilQuizStatus.style.display = 'none';
+        pupilQuizStatus.textContent = '';
+      }
+
       pupilWhiteboardView.style.display = 'none';
       pupilQuizView.style.display = 'block';
-      if (pupilQuizStatus) pupilQuizStatus.style.display = 'none';
 
       pupilQuizQuestion.textContent = payload.question;
       pupilQuizOptions.innerHTML = ''; 
@@ -348,10 +341,8 @@ function startLiveConnection(roomCode) {
       // ⏱️ INTEGRATED COGNITIVE PAUSE: 3-2-1 SCREEN ANIMATION ENGINE
       // ====================================================================
       if (payload.runCountdown) {
-        // Hide the choices container while we load buttons in the background
         pupilQuizOptions.style.visibility = 'hidden';
 
-        // Grab or build an inescapable full-screen backdrop modal
         let overlay = document.getElementById('pupilQuizCountdownOverlay');
         if (!overlay) {
           overlay = document.createElement('div');
@@ -359,7 +350,6 @@ function startLiveConnection(roomCode) {
           document.body.appendChild(overlay);
         }
         
-        // High-performance styling to lock down the iPad screen entirely
         overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #1a1a24; color: #ffffff; z-index: 999999; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; user-select: none;";
         
         let currentTick = 3;
@@ -370,7 +360,6 @@ function startLiveConnection(roomCode) {
           </div>
         `;
 
-        // Run the master clock loop
         const clockTicker = setInterval(() => {
           currentTick--;
           const numDisplay = document.getElementById('pupilCountdownNum');
@@ -378,7 +367,6 @@ function startLiveConnection(roomCode) {
           if (currentTick > 0) {
             if (numDisplay) {
               numDisplay.textContent = currentTick;
-              // Minor scale animation bump to guide eye focus
               numDisplay.style.transform = 'scale(1.2)';
               setTimeout(() => { if(numDisplay) numDisplay.style.transform = 'scale(1)'; }, 100);
             }
@@ -388,7 +376,6 @@ function startLiveConnection(roomCode) {
               numDisplay.style.color = "#2ecc71";
             }
           } else {
-            // Clock expired! Dismantle overlay and drop the curtain to show the options
             clearInterval(clockTicker);
             overlay.style.display = 'none';
             pupilQuizOptions.style.visibility = 'visible';
@@ -396,29 +383,27 @@ function startLiveConnection(roomCode) {
         }, 1000);
 
       } else {
-        // Fallback: If no countdown flag is present, ensure choices show up instantly
         pupilQuizOptions.style.visibility = 'visible';
       }
-      // ====================================================================
 
-      // 4. LEAVE EVERYTHING ELSE BELOW ALONE (Your loop continues flawlessly)
+      // Populate choices
       if (payload.options && Array.isArray(payload.options)) {
         payload.options.forEach((optionText, index) => {
           const btn = document.createElement('button');
+          btn.className = "pupil-quiz-option-btn"; // Class tag added for cleaner selection maps
           btn.textContent = optionText;
-          btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #2980b9; border-radius: 6px; background: #ebf5fb; font-size: 16px; font-weight: bold; cursor: pointer; color: #2980b9; transition: all 0.2s; outline: none; margin-bottom: 8px; text-align: left;";
+          btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #2980b9; border-radius: 6px; background: #ebf5fb; font-size: 16px; font-weight: bold; cursor: pointer; color: #2980b9; transition: all 0.2s; outline: none; margin-bottom: 8px; text-align: left; opacity: 1;";
           
           btn.onmouseover = () => { btn.style.background = "#2980b9"; btn.style.color = "#ffffff"; };
           btn.onmouseout = () => { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; };
 
           btn.addEventListener('click', () => {
-            if (!hasAnsweredCurrentQuestion) {
-              hasAnsweredCurrentQuestion = true; 
-              if (index === currentCorrectAnswerIndex) {
-                pupilScore++;
-              }
-            }
+            if (hasAnsweredCurrentQuestion) return; // Prevent double taps completely
+            
+            hasAnsweredCurrentQuestion = true; 
+            studentChosenIndex = index; // Save what index this specific user picked
 
+            // Fire selection packet to the teacher
             liveChannel.send({
               type: 'broadcast',
               event: 'submit-answer', 
@@ -428,30 +413,66 @@ function startLiveConnection(roomCode) {
               }
             });
             
-            const allOptionBtns = pupilQuizOptions.querySelectorAll('button');
+            // Disable all options and dim unselected options
+            const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
             allOptionBtns.forEach(b => { 
               b.disabled = true; 
-              b.style.opacity = "0.4"; 
+              b.style.opacity = "0.3"; 
               b.style.cursor = "default";
               b.onmouseover = null; 
+              b.onmouseout = null;
             });
             
-            btn.style.background = "#2ecc71";
+            // 🌟 Highlight selected option in clear BLUE
+            btn.style.background = "#3498db";
             btn.style.color = "#ffffff";
-            btn.style.opacity = "1";
-
-            if (pupilQuizStatus) {
-              pupilQuizStatus.textContent = `✓ Answer submitted to teacher panel!`;
-              pupilQuizStatus.style.display = 'block';
-              pupilQuizStatus.style.color = '#2ecc71';
-            }
+            btn.style.opacity = "1"; // Keep selected item clear and fully opaque
           });
           
           pupilQuizOptions.appendChild(btn);
         });
       }
     })
-    
+
+    // ========================================================================
+    // 🌟 NEWLY ADDED: LIVE QUIZ REVEAL LISTENER (HANDLES DYNAMIC GREEN/RED RESULTS)
+    // ========================================================================
+    .on('broadcast', { event: 'reveal-quiz-answer' }, ({ payload }) => {
+      if (!pupilQuizOptions || !payload || !payload.correctIndices) return;
+
+      const correctAnswersArray = payload.correctIndices; // Array tracking correct answers
+      const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
+
+      // Update local student total score if choice was correct
+      if (studentChosenIndex !== null && correctAnswersArray.includes(studentChosenIndex)) {
+        pupilScore++;
+        console.log(`🎯 Score verified down on iPad! Total: ${pupilScore}`);
+      }
+
+      // Iterate through options on screen and apply exact response color profiles
+      allOptionBtns.forEach((btn, idx) => {
+        const isThisCorrect = correctAnswersArray.includes(idx);
+        const wasThisChosenByStudent = (studentChosenIndex === idx);
+
+        if (isThisCorrect) {
+          // Turn ANY correct answers green immediately
+          btn.style.background = "#2ecc71";
+          btn.style.color = "#ffffff";
+          btn.style.opacity = "1";
+          btn.style.borderColor = "#27ae60";
+        } else if (wasThisChosenByStudent) {
+          // If student chose this option and it wasn't correct, make it red
+          btn.style.background = "#e74c3c";
+          btn.style.color = "#ffffff";
+          btn.style.opacity = "1";
+          btn.style.borderColor = "#c0392b";
+        } else {
+          // Mute and dim completely wrong/unselected choice layers
+          btn.style.opacity = "0.15";
+        }
+      });
+    })
+
     // ========================================================================
     // PIPELINE SUBSCRIPTION IGNITION CORE
     // ========================================================================
