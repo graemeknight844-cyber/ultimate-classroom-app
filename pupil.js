@@ -434,13 +434,13 @@ function startLiveConnection(roomCode) {
       }
     })
 
-    // ========================================================================
-    // 🌟 NEWLY ADDED: LIVE QUIZ REVEAL LISTENER (HANDLES DYNAMIC GREEN/RED RESULTS)
+// ========================================================================
+    // LIVE QUIZ REVEAL LISTENER (TURNS THE BLUE SELECTION GREEN OR RED)
     // ========================================================================
     .on('broadcast', { event: 'reveal-quiz-answer' }, ({ payload }) => {
       if (!pupilQuizOptions || !payload || !payload.correctIndices) return;
 
-      const correctAnswersArray = payload.correctIndices; // Array tracking correct answers
+      const correctAnswersArray = payload.correctIndices; // Array tracking correct answers from teacher
       const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
 
       // Update local student total score if choice was correct
@@ -449,26 +449,33 @@ function startLiveConnection(roomCode) {
         console.log(`🎯 Score verified down on iPad! Total: ${pupilScore}`);
       }
 
-      // Iterate through options on screen and apply exact response color profiles
+      // Iterate through the options on the iPad screen and swap the colors!
       allOptionBtns.forEach((btn, idx) => {
         const isThisCorrect = correctAnswersArray.includes(idx);
         const wasThisChosenByStudent = (studentChosenIndex === idx);
 
-        if (isThisCorrect) {
-          // Turn ANY correct answers green immediately
-          btn.style.background = "#2ecc71";
+        if (wasThisChosenByStudent) {
+          // 🔵 Swap out their blue selection color!
+          if (isThisCorrect) {
+            btn.style.background = "#2ecc71"; // ✅ Flash GREEN if their blue choice was correct
+            btn.style.borderColor = "#27ae60";
+          } else {
+            btn.style.background = "#e74c3c"; // ❌ Flash RED if their blue choice was incorrect
+            btn.style.borderColor = "#c0392b";
+          }
           btn.style.color = "#ffffff";
-          btn.style.opacity = "1";
-          btn.style.borderColor = "#27ae60";
-        } else if (wasThisChosenByStudent) {
-          // If student chose this option and it wasn't correct, make it red
-          btn.style.background = "#e74c3c";
-          btn.style.color = "#ffffff";
-          btn.style.opacity = "1";
-          btn.style.borderColor = "#c0392b";
+          btn.style.opacity = "1"; // Keep their choice completely vivid
         } else {
-          // Mute and dim completely wrong/unselected choice layers
-          btn.style.opacity = "0.15";
+          // Options they DID NOT tap:
+          if (isThisCorrect) {
+            // If it was a correct answer they missed, light it up green gently so they learn the right answer
+            btn.style.background = "#2ecc71";
+            btn.style.color = "#ffffff";
+            btn.style.opacity = "0.8"; 
+          } else {
+            // Completely wrong and unselected answers get dimmed way down
+            btn.style.opacity = "0.15";
+          }
         }
       });
     })
