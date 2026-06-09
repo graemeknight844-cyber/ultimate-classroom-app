@@ -62,9 +62,10 @@ if (ctx && pupilPenColor) {
 // Local tracking variables for the quiz scoreboard
 let pupilScore = 0;
 let totalQuizQuestions = 0;
-let currentCorrectAnswerIndices = []; // Re-wired to track an array of answers
+let currentCorrectAnswerIndices = []; 
 let hasAnsweredCurrentQuestion = false;
-let studentChosenIndex = null;        // Tracks exactly what choice the user selected
+let studentChosenIndex = null;        // Kept for backward compatibility
+let studentChosenIndices = [];       // 🎯 NEW: Tracks multiple selections for multi-choice questions
 
 // ==========================================
 // 4. LISTEN FOR THE "JOIN CLASS" BUTTON CLICK
@@ -304,7 +305,7 @@ function startLiveConnection(roomCode) {
     })
 
     // ========================================================================
-    // LIVE QUIZ INTERCEPT NETWORK ROUTING LAYERS
+    // LIVE QUIZ INTERCEPT NETWORK ROUTING LAYERS (UPDATED FOR MULTI-SELECT)
     // ========================================================================
     .on('broadcast', { event: 'start-live-quiz' }, ({ payload }) => {
       if (!pupilWhiteboardView || !pupilQuizView || !pupilQuizQuestion || !pupilQuizOptions) return;
@@ -313,7 +314,8 @@ function startLiveConnection(roomCode) {
       // Clear tracking variables for the new question
       totalQuizQuestions = payload.totalQuestions;
       hasAnsweredCurrentQuestion = false; 
-      studentChosenIndex = null; // Wipe past choice layout histories
+      studentChosenIndex = null;
+      studentChosenIndices = []; // 🎯 Reset selection matrix
 
       // Hide status tracking element completely (Clean layout)
       if (pupilQuizStatus) {
@@ -336,6 +338,9 @@ function startLiveConnection(roomCode) {
           pupilQuizRefText.textContent = "";
         }
       }
+
+      // Check if teacher flagged this question card as multi-answer selection mode
+      const isMultiAnswerMode = payload.isMultiAnswer || false;
 
       // ====================================================================
       // ⏱️ INTEGRATED COGNITIVE PAUSE: 3-2-1 SCREEN ANIMATION ENGINE
@@ -390,111 +395,162 @@ function startLiveConnection(roomCode) {
       if (payload.options && Array.isArray(payload.options)) {
         payload.options.forEach((optionText, index) => {
           const btn = document.createElement('button');
-          btn.className = "pupil-quiz-option-btn"; // Class tag added for cleaner selection maps
+          btn.className = "pupil-quiz-option-btn"; 
+          btn.setAttribute('data-index', index);
           btn.textContent = optionText;
           btn.style.cssText = "width: 100%; padding: 14px; border: 1px solid #2980b9; border-radius: 6px; background: #ebf5fb; font-size: 16px; font-weight: bold; cursor: pointer; color: #2980b9; transition: all 0.2s; outline: none; margin-bottom: 8px; text-align: left; opacity: 1;";
           
-          btn.onmouseover = () => { btn.style.background = "#2980b9"; btn.style.color = "#ffffff"; };
-          btn.onmouseout = () => { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; };
+          btn.onmouseover = () => { if (!hasAnsweredCurrentQuestion) { btn.style.background = "#2980b9"; btn.style.color = "#ffffff"; } };
+          btn.onmouseout = () => { if (!hasAnsweredCurrentQuestion && !studentChosenIndices.includes(index)) { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; } };
 
           btn.addEventListener('click', () => {
-            if (hasAnsweredCurrentQuestion) return; // Prevent double taps completely
+            if (hasAnsweredCurrentQuestion) return; 
             
-            hasAnsweredCurrentQuestion = true; 
-            studentChosenIndex = index; // Save what index this specific user picked
-
-            // Fire selection packet to the teacher
-            liveChannel.send({
-              type: 'broadcast',
-              event: 'submit-answer', 
-              payload: { 
-                studentName: studentName, 
-                chosenIndex: index 
+            if (isMultiAnswerMode) {
+              // 🎯 MULTI-SELECT MODE: Toggle choice inside the matrix index array
+              if (studentChosenIndices.includes(index)) {
+                studentChosenIndices = studentChosenIndices.filter(i => i !== index);
+                btn.style.background = "#ebf5fb";
+                btn.style.color = "#2980b9";
+              } else {
+                studentChosenIndices.push(index);
+                btn.style.background = "#3498db";
+                btn.style.color = "#ffffff";
               }
-            });
-            
-            // Disable all options and dim unselected options
-            const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
-            allOptionBtns.forEach(b => { 
-              b.disabled = true; 
-              b.style.opacity = "0.3"; 
-              b.style.cursor = "default";
-              b.onmouseover = null; 
-              b.onmouseout = null;
-            });
-            
-            // 🌟 Highlight selected option in clear BLUE
-            btn.style.background = "#3498db";
-            btn.style.color = "#ffffff";
-            btn.style.opacity = "1"; // Keep selected item clear and fully opaque
+            } else {
+              // 🔘 SINGLE-SELECT MODE: Lock and submit immediately
+              hasAnsweredCurrentQuestion = true; 
+              studentChosenIndex = index;
+              studentChosenIndices = [index];
+
+              liveChannel.send({
+                type: 'broadcast',
+                event: 'submit-answer', 
+                payload: { studentName: studentName, chosenIndex: index }
+              });
+              
+              const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
+              allOptionBtns.forEach(b => { 
+                b.disabled = true; 
+                b.style.opacity = "0.3"; 
+                b.style.cursor = "default";
+              });
+              
+              btn.style.background = "#3498db";
+              btn.style.color = "#ffffff";
+              btn.style.opacity = "1";
+            }
           });
           
           pupilQuizOptions.appendChild(btn);
         });
+
+        // 🎯 Spawns the submission lock button for multi-answer questions
+        if (isMultiAnswerMode) {
+          const submitBtn = document.createElement('button');
+          submitBtn.id = "lockInMultiAnswersBtn";
+          submitBtn.textContent = "🔒 Lock In Answers";
+          submitBtn.style.cssText = "width: 100%; padding: 15px; border: none; border-radius: 6px; background: #2ecc71; font-size: 18px; font-weight: bold; cursor: pointer; color: white; margin-top: 10px; text-transform: uppercase; transition: all 0.2s;";
+          
+          submitBtn.addEventListener('click', () => {
+            if (studentChosenIndices.length === 0) {
+              alert("Please select at least one choice before locking in!");
+              return;
+            }
+
+            hasAnsweredCurrentQuestion = true;
+            submitBtn.disabled = true;
+            submitBtn.style.background = "#7f8c8d";
+            submitBtn.textContent = "✓ Selection Submitted";
+
+            // Freeze choices and dim items that weren't selected
+            const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
+            allOptionBtns.forEach(b => {
+              b.disabled = true;
+              const idx = parseInt(b.getAttribute('data-index'));
+              if (!studentChosenIndices.includes(idx)) {
+                b.style.opacity = "0.25";
+              }
+              b.style.cursor = "default";
+            });
+
+            // Ship out array payload matrix to the teacher's script panel
+            liveChannel.send({
+              type: 'broadcast',
+              event: 'submit-answer', 
+              payload: { studentName: studentName, chosenIndex: studentChosenIndices }
+            });
+          });
+
+          pupilQuizOptions.appendChild(submitBtn);
+        }
       }
     })
 
-// ========================================================================
-    // LIVE QUIZ REVEAL LISTENER (TURNS THE BLUE SELECTION GREEN OR RED)
+/// ========================================================================
+    // LIVE QUIZ REVEAL LISTENER (UPDATED FOR MULTI-CHOICE ASSESSMENT HIGHLIGHTS)
     // ========================================================================
     .on('broadcast', { event: 'reveal-quiz-answer' }, ({ payload }) => {
       if (!pupilQuizOptions || !payload || !payload.correctIndices) return;
 
-      const correctAnswersArray = payload.correctIndices; // Array tracking correct answers from teacher
+      const correctAnswersArray = payload.correctIndices; 
       const allOptionBtns = pupilQuizOptions.querySelectorAll('.pupil-quiz-option-btn');
 
-      // Update local student total score if choice was correct
-      if (studentChosenIndex !== null && correctAnswersArray.includes(studentChosenIndex)) {
+      // 🎯 STRICT ASSESSMENT CHECK: Student earns a point if their entire selection match matches perfectly
+      const isPerfectMatch = studentChosenIndices.length === correctAnswersArray.length && 
+                             studentChosenIndices.every(idx => correctAnswersArray.includes(idx));
+
+      if (isPerfectMatch) {
         pupilScore++;
         console.log(`🎯 Score verified down on iPad! Total: ${pupilScore}`);
       }
 
-      // Iterate through the options on the iPad screen and swap the colors!
+      // Remove the lock-in button from view if present
+      const lockBtn = document.getElementById('lockInMultiAnswersBtn');
+      if (lockBtn) lockBtn.style.display = 'none';
+
+      // Re-style option buttons with validation telemetry feedback mapping colors
       allOptionBtns.forEach((btn, idx) => {
         const isThisCorrect = correctAnswersArray.includes(idx);
-        const wasThisChosenByStudent = (studentChosenIndex === idx);
+        const wasThisChosenByStudent = studentChosenIndices.includes(idx);
 
         if (wasThisChosenByStudent) {
-          // 🔵 Swap out their blue selection color!
           if (isThisCorrect) {
-            btn.style.background = "#2ecc71"; // ✅ Flash GREEN if their blue choice was correct
+            btn.style.background = "#2ecc71"; // ✅ Green if they picked a correct option
             btn.style.borderColor = "#27ae60";
           } else {
-            btn.style.background = "#e74c3c"; // ❌ Flash RED if their blue choice was incorrect
+            btn.style.background = "#e74c3c"; // ❌ Red if they picked a wrong option
             btn.style.borderColor = "#c0392b";
           }
           btn.style.color = "#ffffff";
-          btn.style.opacity = "1"; // Keep their choice completely vivid
+          btn.style.opacity = "1"; 
         } else {
-          // Options they DID NOT tap:
           if (isThisCorrect) {
-            // If it was a correct answer they missed, light it up green gently so they learn the right answer
-            btn.style.background = "#2ecc71";
+            btn.style.background = "#2ecc71"; // 🟢 Light up missed answers gently
             btn.style.color = "#ffffff";
-            btn.style.opacity = "0.8"; 
+            btn.style.opacity = "0.5"; 
           } else {
-            // Completely wrong and unselected answers get dimmed way down
-            btn.style.opacity = "0.15";
+            btn.style.opacity = "0.15"; // Completely dim out irrelevant wrong options
           }
         }
       });
     })
 
     // ========================================================================
-    // NEWLY ADDED: CLEAR QUIZ LISTENER (RETURNS PUPILS TO WHITEBOARD)
+    // CLEAR QUIZ LISTENER (RETURNS PUPILS TO WHITEBOARD)
     // ========================================================================
     .on('broadcast', { event: 'clear-live-quiz' }, () => {
       if (!pupilWhiteboardView || !pupilQuizView) return;
       
       console.log("Quiz ended by teacher. Dropping back to Whiteboard.");
       
-      // Toggle views instantly
       pupilQuizView.style.display = 'none';
       if (pupilPollView) pupilPollView.style.display = 'none';
       pupilWhiteboardView.style.display = 'block';
       
       // Clean up local states for the next round
       studentChosenIndex = null;
+      studentChosenIndices = []; // 🎯 Clear array reference matrix logs
       hasAnsweredCurrentQuestion = false;
     })
 

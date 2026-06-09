@@ -1443,6 +1443,14 @@ function presentActiveQuizQuestionIndex() {
 
   renderLiveQuizBars(false);
 
+  // 🎯 MATRIX RESOLVER: Safely compute if this is a single or multi-choice question card
+  let targetIndices = [];
+  if (Array.isArray(currentQuestion.correctIndices)) {
+    targetIndices = currentQuestion.correctIndices;
+  } else if (typeof currentQuestion.correctIndex !== 'undefined') {
+    targetIndices = [currentQuestion.correctIndex];
+  }
+
   // 📡 BROADCAST: Send payload to student devices with required validation markers
   if (channel) {
     channel.send({
@@ -1452,9 +1460,10 @@ function presentActiveQuizQuestionIndex() {
         index: quizState.currentQuestionIndex,
         question: currentQuestion.question,
         options: currentQuestion.options,
-        correctIndex: currentQuestion.correctIndex,    // Included for answer processing
-        totalQuestions: quizState.plannedQueue.length,   // Included for scorecard rendering
-        runCountdown: true 
+        correctIndex: currentQuestion.correctIndex,    // Included for fallback support
+        totalQuestions: quizState.plannedQueue.length,   
+        runCountdown: true,
+        isMultiAnswer: targetIndices.length > 1        // 🎯 NEW: Instructs pupil iPads to use multi-select mode!
       }
     });
   }
@@ -1466,18 +1475,10 @@ function presentActiveQuizQuestionIndex() {
       liveStatus.innerHTML = "🟢 QUIZ LIVE - RESPONSES OPEN";
     }
   }, 3000);
-}
-
-  // ⏱️ TEACHER SIDE TIMEOUT: Automatically switch status when countdown finishes
-  setTimeout(() => {
-    const liveStatus = document.getElementById('quizStageStatusMessage');
-    if (liveStatus && quizState.isActive) {
-      liveStatus.innerHTML = "QUIZ LIVE - RESPONSES OPEN";
-    }
-  }, 3000);
+} // 👈 Properly closes the function here, with the duplicate timer deleted safely!
 
 
-// This closing bracket ends the function
+
 // 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME (FIXED FOR MULTI-CHOICE SELECTION)
 function renderLiveQuizBars(revealAnswerKey = false) {
   const container = document.getElementById('quizStageLiveBarsContainer');
