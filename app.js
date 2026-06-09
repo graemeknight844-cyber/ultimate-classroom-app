@@ -1472,13 +1472,13 @@ function presentActiveQuizQuestionIndex() {
   setTimeout(() => {
     const liveStatus = document.getElementById('quizStageStatusMessage');
     if (liveStatus && quizState.isActive) {
-      liveStatus.innerHTML = "🟢 QUIZ LIVE - RESPONSES OPEN";
+      liveStatus.innerHTML = "QUIZ LIVE - RESPONSES OPEN";
     }
   }, 3000);
 
 
-// 👈 This closing bracket ends the function
-// 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME
+// This closing bracket ends the function
+// 3. DRAW AND RE-UPDATE HORIZONTAL BARS IN REAL TIME (FIXED FOR MULTI-CHOICE SELECTION)
 function renderLiveQuizBars(revealAnswerKey = false) {
   const container = document.getElementById('quizStageLiveBarsContainer');
   if (!container) return;
@@ -1497,20 +1497,31 @@ function renderLiveQuizBars(revealAnswerKey = false) {
 
   container.innerHTML = '';
 
+  // 🎯 MATRIX RESOLVER: Builds a uniform array for both single and multi-answer cards
+  let targetIndices = [];
+  if (Array.isArray(currentQuestion.correctIndices)) {
+    targetIndices = currentQuestion.correctIndices;
+  } else if (typeof currentQuestion.correctIndex !== 'undefined') {
+    targetIndices = [currentQuestion.correctIndex];
+  }
+
   currentQuestion.options.forEach((optionText, idx) => {
     const voteCount = tally[idx];
     const percentage = totalSubmissionsCount > 0 ? Math.round((voteCount / totalSubmissionsCount) * 100) : 0;
-    const isThisCorrectOption = (currentQuestion.correctIndex === idx);
+    
+    // 🎯 FIX: Check if the option index exists anywhere inside our target answers list!
+    const isThisCorrectOption = targetIndices.includes(idx);
 
     const row = document.createElement('div');
     row.style.cssText = "display: flex; align-items: center; background: #252538; padding: 12px 20px; border-radius: 6px; position: relative; overflow: hidden; border: 2px solid transparent; transition: all 0.2s ease; margin-bottom: 8px;";
 
     if (revealAnswerKey) {
       if (isThisCorrectOption) {
-        row.style.borderColor = "#2ecc71";
-        row.style.background = "#1b3a2b";
+        row.style.borderColor = "#2ecc71"; // 🟢 Vivid Green Border
+        row.style.background = "#1b3a2b";   // 🟢 Dark Green Fill
+        row.style.opacity = "1";            // Keep it completely distinct
       } else {
-        row.style.opacity = "0.3";
+        row.style.opacity = "0.25";          // 🔘 Dim wrong options down significantly
       }
     }
 
