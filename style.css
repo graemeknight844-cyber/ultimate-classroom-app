@@ -276,3 +276,48 @@ canvas {
   text-align: center;   /* Ensures numbers stay dead center */
   outline: none;       /* Removes the default harsh browser border when clicked */
 }
+
+/* Styling for dynamically injected quiz rows */
+.quiz-staged-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #2c3e50;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #ecf0f1;
+}
+
+.quiz-staged-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quiz-staged-status {
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Clear/X Button styling */
+.quiz-del-btn {
+  background: none;
+  border: none;
+  color: #7f8c8d;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.quiz-del-btn:hover {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+}
+
+/* Hidden state for filtering out archived items */
+.quiz-row-hidden {
+  display: none !important;
+}

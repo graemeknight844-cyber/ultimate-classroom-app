@@ -70,6 +70,7 @@
           <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
         </div>
       </section>
+
 <section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
         <h3 style="margin-top: 0; display: flex; align-items: center; justify-content: space-between; color: #f1c40f; border-bottom: 1px solid #34495e; padding-bottom: 10px;">
           <span>🏆 Quiz Master Control Console</span>
@@ -113,13 +114,15 @@
         </div>
 
         <div style="background: #1a252f; border-radius: 4px; padding: 12px; border: 1px solid #34495e;">
-          <h4 style="margin: 0 0 10px 0; font-size: 12px; color: #bdc3c7; text-transform: uppercase; letter-spacing: 0.5px;">📋 Staged Questions Queue (Saved Quiz Cards)</h4>
+          <h4 style="margin: 0 0 10px 0; font-size: 12px; color: #bdc3c7; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Staged Questions Queue (Saved Quiz Cards)</span>
+            <button id="toggleQuizArchiveBtn" onclick="toggleQuizArchiveView()" style="background: none; border: none; color: #3498db; font-size: 11px; text-decoration: underline; cursor: pointer; font-family: inherit;">👁️ View Archive</button>
+          </h4>
           <div id="quizPersistentBankContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 4px;">
             <em style="color: #7f8c8d; font-size: 12px; display: block; padding: 10px 0; text-align: center;">No questions stored yet. Build questions above to load your session bank.</em>
           </div>
         </div>
       </section>
-
       <section class="teacher-stage">
         
         <div id="teacherWhiteboardView" style="display: block; width: 100%;">
@@ -179,7 +182,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #34495e; padding-bottom: 15px; margin-bottom: 30px;">
             <h2 id="presQuestionNumber" style="color: #34495e; font-size: 24px; margin: 0; font-weight: bold;">Question 0 / 0</h2>
             <div style="background: #e74c3c; color: white; padding: 8px 22px; font-weight: bold; border-radius: 50px; font-size: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-              📥 Locked In: <span id="presCurrentAnswersCount">0</span> / <span id="presTargetCount">0</span> Pupils
+              Locked In: <span id="presCurrentAnswersCount">0</span> / <span id="presTargetCount">0</span> Pupils
             </div>
             <button id="emergencyEndQuizBtn" style="padding: 8px 18px; background: #7f8c8d; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Exit Quiz Mode</button>
           </div>

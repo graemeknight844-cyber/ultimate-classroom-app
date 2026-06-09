@@ -1716,3 +1716,43 @@ function handleIncomingQuizResponse(payload) {
     renderLiveQuizBars(false);
   }
 }
+
+// Global tracker to check if we are viewing the active queue or archived items
+let showingQuizArchive = false;
+
+// THIS FUNCTION HANDLES ARCHIVING & UNARCHIVING
+function handleQuizAction(index) {
+  // ⚠️ NOTE: Replace 'quizDeck' with your actual quiz global array variable name if it's different!
+  if (typeof quizDeck !== 'undefined' && quizDeck[index]) {
+    
+    // Toggle the archived status flag
+    quizDeck[index].isArchived = !quizDeck[index].isArchived;
+    
+    // Re-render the container so the changes show up instantly
+    renderStagedQuestions(quizDeck);
+    
+    // If your app has a function to update the top green count badge, call it here:
+    if (typeof updateQuizBadgeCount === 'function') {
+      updateQuizBadgeCount();
+    }
+  }
+}
+
+// THIS FUNCTION HANDLES SWITCHING THE ACTIVE/ARCHIVE VIEWS
+function toggleQuizArchiveView() {
+  showingQuizArchive = !showingQuizArchive;
+  const linkBtn = document.getElementById('toggleQuizArchiveBtn');
+  
+  if (showingQuizArchive) {
+    linkBtn.textContent = '👁️ View Active Queue';
+    linkBtn.style.color = '#2ecc71'; // Changes button text to green
+  } else {
+    linkBtn.textContent = '👁️ View Archive';
+    linkBtn.style.color = '#3498db'; // Changes button text back to blue
+  }
+  
+  // Refresh the UI with the new filters applied
+  if (typeof quizDeck !== 'undefined') {
+    renderStagedQuestions(quizDeck);
+  }
+}
