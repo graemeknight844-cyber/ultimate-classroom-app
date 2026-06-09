@@ -1270,14 +1270,11 @@ if (exportBtn) {
   });
 }
 
-// ============================================================================
-// AUTOMATED QUIZ CREATION ENGINE LOGIC (RECOVERY MODULE)
-// ============================================================================
 function setupMyQuizButtons() {
   const addBtn = document.getElementById('addQuestionToBankBtn');
 
   if (addBtn) {
-    // 🧼 Wipes away any stacked duplicate listeners hiding in browser memory
+    // Wipes away any stacked duplicate listeners hiding in browser memory
     const newCleanBtn = addBtn.cloneNode(true);
     addBtn.parentNode.replaceChild(newCleanBtn, addBtn);
     
@@ -1288,20 +1285,23 @@ function setupMyQuizButtons() {
       const opt1 = document.getElementById('quizOpt1');
       const opt2 = document.getElementById('quizOpt2');
       const opt3 = document.getElementById('quizOpt3');
-      const radios = document.getElementsByName('quizCorrectRadio');
+      const checkboxes = document.getElementsByName('quizCorrectRadio');
 
       if (!qInput || !qInput.value.trim()) {
         alert("Please type a question first before saving!");
         return;
       }
 
-      let correctIdx = 0;
-      for (let i = 0; i < radios.length; i++) {
-        if (radios[i].checked) {
-          correctIdx = i;
-          break;
+      // COLLECT ALL CHECKED BOXES INTO AN ARRAY
+      let targetIndices = [];
+      for (let i = 0; i < checkboxes.length; i++) {
+        if (checkboxes[i].checked) {
+          targetIndices.push(i); // Push every single selected index!
         }
       }
+
+      // Fallback: If nothing was ticked, default to option A (index 0)
+      if (targetIndices.length === 0) targetIndices = [0];
 
       const newQuestionCard = {
         question: qInput.value.trim(),
@@ -1311,7 +1311,7 @@ function setupMyQuizButtons() {
           opt2?.value.trim() || "Option C",
           opt3?.value.trim() || "Option D"
         ],
-        correctIndex: correctIdx
+        correctIndices: targetIndices // SAVED AS MULTI-SELECT ARRAY TO MATCH YOUR PRESENTATION LAYER!
       };
 
       if (typeof quizState === 'undefined') window.quizState = {};
@@ -1319,6 +1319,7 @@ function setupMyQuizButtons() {
       
       quizState.plannedQueue.push(newQuestionCard);
 
+      // Clean inputs for the next entry
       qInput.value = "";
       if (opt0) opt0.value = "";
       if (opt1) opt1.value = "";
@@ -1345,7 +1346,7 @@ function setupMyQuizButtons() {
   }
 }
 
-// 🚀 Explicitly tell the browser to execute the listener setup on page boot
+// Explicitly tell the browser to execute the listener setup on page boot
 if (typeof setupMyQuizButtons === 'function') {
   setupMyQuizButtons();
 }

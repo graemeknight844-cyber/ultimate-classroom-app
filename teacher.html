@@ -70,8 +70,7 @@
           <button id="endPollBtn" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close Poll & Save Results</button>
         </div>
       </section>
-
-      <section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
+<section id="quizPanel" style="display: none; background: #2c3e50; border-radius: 6px; padding: 15px; margin-bottom: 15px; max-width: 1140px; font-family: 'Segoe UI', sans-serif; color: white; box-sizing: border-box;">
         <h3 style="margin-top: 0; display: flex; align-items: center; justify-content: space-between; color: #f1c40f; border-bottom: 1px solid #34495e; padding-bottom: 10px;">
           <span>🏆 Quiz Master Control Console</span>
           <span id="quizBankCountBadge" style="font-size: 12px; background: #1abc9c; padding: 3px 10px; border-radius: 12px; color: white; font-weight: bold;">0 Questions Saved</span>
@@ -84,22 +83,22 @@
           <label style="font-weight: bold; display: block; margin-bottom: 8px; font-size: 12px; color: #bdc3c7;">Options & Correct Answer Key:</label>
           
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-            <input type="radio" name="quizCorrectRadio" value="0" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="checkbox" name="quizCorrectRadio" value="0" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71; border-radius: 50%; appearance: auto; -webkit-appearance: checkbox;">
             <input type="text" id="quizOpt0" class="quiz-opt" placeholder="Option A" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-            <input type="radio" name="quizCorrectRadio" value="1" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="checkbox" name="quizCorrectRadio" value="1" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71; border-radius: 50%; appearance: auto; -webkit-appearance: checkbox;">
             <input type="text" id="quizOpt1" class="quiz-opt" placeholder="Option B" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-            <input type="radio" name="quizCorrectRadio" value="2" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="checkbox" name="quizCorrectRadio" value="2" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71; border-radius: 50%; appearance: auto; -webkit-appearance: checkbox;">
             <input type="text" id="quizOpt2" class="quiz-opt" placeholder="Option C" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-            <input type="radio" name="quizCorrectRadio" value="3" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71;">
+            <input type="checkbox" name="quizCorrectRadio" value="3" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2ecc71; border-radius: 50%; appearance: auto; -webkit-appearance: checkbox;">
             <input type="text" id="quizOpt3" class="quiz-opt" placeholder="Option D" style="flex-grow: 1; padding: 7px; border-radius: 4px; border: none; font-size: 13px; color: #333;">
           </div>
 
@@ -108,8 +107,8 @@
                Add to Quiz Deck
             </button>
             <button id="startLiveQuizDeckBtn" style="background: #2ecc71; color: white; padding: 12px 24px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; font-size: 16px;">
-  Launch Quiz Presentation Deck
-</button>
+              Launch Quiz Presentation Deck
+            </button>
           </div>
         </div>
 
