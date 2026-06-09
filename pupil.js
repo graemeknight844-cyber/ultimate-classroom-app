@@ -313,20 +313,20 @@ function startLiveConnection(roomCode) {
       pupilWhiteboardView.style.display = 'block';
     })
 
-    // ========================================================================
+    /// ========================================================================
     // LIVE QUIZ INTERCEPT NETWORK ROUTING LAYERS
     // ========================================================================
     .on('broadcast', { event: 'start-live-quiz' }, ({ payload }) => {
-  // 1. Keep your existing safety checks exactly as they are:
-  if (!pupilWhiteboardView || !pupilQuizView || !pupilQuizQuestion || !pupilQuizOptions) return;
-  if (pupilPollView) pupilPollView.style.display = 'none'; 
+      // 1. Existing safety checks stay exactly as they are
+      if (!pupilWhiteboardView || !pupilQuizView || !pupilQuizQuestion || !pupilQuizOptions) return;
+      if (pupilPollView) pupilPollView.style.display = 'none'; 
 
-  // 2. ADD THESE THREE LINES RIGHT HERE:
-  currentCorrectAnswerIndex = payload.correctIndex;
-  totalQuizQuestions = payload.totalQuestions;
-  hasAnsweredCurrentQuestion = false; 
+      // 2. State tracking configurations
+      currentCorrectAnswerIndex = payload.correctIndex;
+      totalQuizQuestions = payload.totalQuestions;
+      hasAnsweredCurrentQuestion = false; 
 
-  // 3. LEAVE EVERYTHING ELSE BELOW THIS ALONE (Your existing code that renders options, etc.)
+      // 3. Setup views and presentation text layers
       pupilWhiteboardView.style.display = 'none';
       pupilQuizView.style.display = 'block';
       if (pupilQuizStatus) pupilQuizStatus.style.display = 'none';
@@ -344,6 +344,64 @@ function startLiveConnection(roomCode) {
         }
       }
 
+      // ====================================================================
+      // ⏱️ INTEGRATED COGNITIVE PAUSE: 3-2-1 SCREEN ANIMATION ENGINE
+      // ====================================================================
+      if (payload.runCountdown) {
+        // Hide the choices container while we load buttons in the background
+        pupilQuizOptions.style.visibility = 'hidden';
+
+        // Grab or build an inescapable full-screen backdrop modal
+        let overlay = document.getElementById('pupilQuizCountdownOverlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'pupilQuizCountdownOverlay';
+          document.body.appendChild(overlay);
+        }
+        
+        // High-performance styling to lock down the iPad screen entirely
+        overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #1a1a24; color: #ffffff; z-index: 999999; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; user-select: none;";
+        
+        let currentTick = 3;
+        overlay.innerHTML = `
+          <div style="text-align: center;">
+            <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 3px; color: #8e8e9f; margin-bottom: 15px; font-weight: bold;">Get Ready...</div>
+            <div id="pupilCountdownNum" style="font-size: 110px; font-weight: 900; color: #e67e22; transition: all 0.1s ease;">3</div>
+          </div>
+        `;
+
+        // Run the master clock loop
+        const clockTicker = setInterval(() => {
+          currentTick--;
+          const numDisplay = document.getElementById('pupilCountdownNum');
+
+          if (currentTick > 0) {
+            if (numDisplay) {
+              numDisplay.textContent = currentTick;
+              // Minor scale animation bump to guide eye focus
+              numDisplay.style.transform = 'scale(1.2)';
+              setTimeout(() => { if(numDisplay) numDisplay.style.transform = 'scale(1)'; }, 100);
+            }
+          } else if (currentTick === 0) {
+            if (numDisplay) {
+              numDisplay.textContent = "GO!";
+              numDisplay.style.color = "#2ecc71";
+            }
+          } else {
+            // Clock expired! Dismantle overlay and drop the curtain to show the options
+            clearInterval(clockTicker);
+            overlay.style.display = 'none';
+            pupilQuizOptions.style.visibility = 'visible';
+          }
+        }, 1000);
+
+      } else {
+        // Fallback: If no countdown flag is present, ensure choices show up instantly
+        pupilQuizOptions.style.visibility = 'visible';
+      }
+      // ====================================================================
+
+      // 4. LEAVE EVERYTHING ELSE BELOW ALONE (Your loop continues flawlessly)
       if (payload.options && Array.isArray(payload.options)) {
         payload.options.forEach((optionText, index) => {
           const btn = document.createElement('button');
@@ -354,17 +412,13 @@ function startLiveConnection(roomCode) {
           btn.onmouseout = () => { btn.style.background = "#ebf5fb"; btn.style.color = "#2980b9"; };
 
           btn.addEventListener('click', () => {
-            
-            // 👇 SQUEEZE THESE LINES IN HERE (DO NOT DELETE THE REST):
             if (!hasAnsweredCurrentQuestion) {
               hasAnsweredCurrentQuestion = true; 
               if (index === currentCorrectAnswerIndex) {
                 pupilScore++;
               }
             }
-            // 👆 END OF NEW LINES
 
-            // FIX APPLIED HERE: Sending perfectly matched parameters down the network line!
             liveChannel.send({
               type: 'broadcast',
               event: 'submit-answer', 
@@ -397,51 +451,6 @@ function startLiveConnection(roomCode) {
         });
       }
     })
-    .on('broadcast', { event: 'clear-live-quiz' }, () => {
-  // 1. Keep your existing safety check
-  if (!pupilWhiteboardView || !pupilQuizView) return;
-  
-  // 2. Instantly hide the quiz questions panel
-  pupilQuizView.style.display = 'none';
-
-  // 3. Create or grab the fullscreen popup modal overlay
-  let scoreModal = document.getElementById('pupilQuizScorecardModal');
-  if (!scoreModal) {
-    scoreModal = document.createElement('div');
-    scoreModal.id = 'pupilQuizScorecardModal';
-    scoreModal.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(26, 26, 36, 0.95); color: white; z-index: 999999; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: sans-serif; padding: 20px; box-sizing: border-box;";
-    document.body.appendChild(scoreModal);
-  } else {
-    scoreModal.style.display = 'flex';
-  }
-
-  // 4. Calculate their grading percentage
-  const percentage = totalQuizQuestions > 0 ? Math.round((pupilScore / totalQuizQuestions) * 100) : 0;
-  let performanceMessage = "Great effort! 🌟";
-  if (percentage >= 80) performanceMessage = "Outstanding Job! 🎉🏆";
-  if (percentage === 100) performanceMessage = "Perfect Score! 🎖️🔥";
-
-  // 5. Inject the scorecard visual layout
-  scoreModal.innerHTML = `
-    <div style="background: #252538; padding: 40px; border-radius: 12px; text-align: center; max-width: 400px; width: 100%; border: 2px solid #3498db; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-      <h2 style="margin-top: 0; font-size: 24px; color: #3498db;">Quiz Complete!</h2>
-      <h1 style="font-size: 48px; margin: 20px 0; color: #2ecc71;">${pupilScore} / ${totalQuizQuestions}</h1>
-      <p style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">${percentage}% Correct</p>
-      <p style="color: #a0a0c0; margin-bottom: 30px;">${performanceMessage}</p>
-      <button id="closeScorecardBtn" style="background: #3498db; color: white; border: none; padding: 12px 30px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; transition: background 0.2s;">Return to Whiteboard</button>
-    </div>
-  `;
-
-  // 6. When they click the button, remove the modal and finally open the Whiteboard view
-  document.getElementById('closeScorecardBtn').addEventListener('click', () => {
-    scoreModal.style.display = 'none';
-    pupilWhiteboardView.style.display = 'block'; // 👈 Your old line runs here instead!
-    
-    // Clear out tracking metrics so they start fresh on the next quiz
-    pupilScore = 0;
-    totalQuizQuestions = 0;
-  });
-})
     
     // ========================================================================
     // PIPELINE SUBSCRIPTION IGNITION CORE
