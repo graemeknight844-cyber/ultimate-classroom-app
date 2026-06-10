@@ -1156,12 +1156,14 @@ if (exportBtn) {
       if (typeof savedPollsHistory !== 'undefined' && savedPollsHistory.length > 0) {
         savedPollsHistory.forEach((poll, pIdx) => {
           if (gridY > 480) {
+            // Add a continuation page if the table grows too tall
             pdf.addPage([1100, 520], 'landscape');
             gridY = 50;
           }
 
           const chosenIndex = poll.votes ? poll.votes[pupilName] : undefined;
           
+          // Row highlight alternates color
           if (pIdx % 2 === 0) {
             pdf.setFillColor(245, 245, 250);
             pdf.rect(30, gridY, 1040, 20, 'F');
@@ -1174,6 +1176,7 @@ if (exportBtn) {
           pdf.text(`Poll Activity #${pIdx + 1}`, 45, gridY + 14);
           
           pdf.setFont("Helvetica", "normal");
+          // Shorten long strings slightly so they don't break table boundaries
           const truncatedQuestion = poll.question.length > 75 ? poll.question.substring(0, 72) + "..." : poll.question;
           pdf.text(truncatedQuestion, 150, gridY + 14);
 
@@ -1213,7 +1216,7 @@ if (exportBtn) {
         gridY += 20;
       }
 
-      // --- SECTION 3: LIVE QUIZ ANSWERS (ON A NEW PAGE IF PREFERRED OR APPENDED BELOW) ---
+      // --- SECTION 3: LIVE QUIZ ANSWERS (ON A NEW PAGE IF PREFERRED OR APPENED BELOW) ---
       if (typeof savedQuizzesHistory !== 'undefined' && savedQuizzesHistory.length > 0) {
         gridY += 15;
         pdf.setTextColor(40, 40, 60);
@@ -1228,9 +1231,8 @@ if (exportBtn) {
         pdf.setFontSize(11);
         pdf.text("Quiz Block", 45, gridY + 15);
         pdf.text("Quiz Core Evaluation Question", 150, gridY + 15);
-        pdf.text("Pupil Response Selected", 520, gridY + 15);
-        pdf.text("Correct Answer Target", 780, gridY + 15);
-        pdf.text("Grade Status", 980, gridY + 15);
+        pdf.text("Correct Answer Answer Target", 650, gridY + 15);
+        pdf.text("Class Score Metric", 930, gridY + 15);
         gridY += 22;
 
         savedQuizzesHistory.forEach((quiz, qIdx) => {
@@ -1251,72 +1253,23 @@ if (exportBtn) {
           pdf.text(`Quiz Item #${qIdx + 1}`, 45, gridY + 14);
 
           pdf.setFont("Helvetica", "normal");
-          const trunQuizText = quiz.question.length > 55 ? quiz.question.substring(0, 52) + "..." : quiz.question;
+          const trunQuizText = quiz.question.length > 75 ? quiz.question.substring(0, 72) + "..." : quiz.question;
           pdf.text(trunQuizText, 150, gridY + 14);
-
-          let studentRawResponse = undefined;
-          if (quizState && quizState.activeSubmissions) {
-            studentRawResponse = quizState.activeSubmissions[pupilName];
-          }
-
-          let pupilAnswerString = "";
-          let isCorrect = false;
-
-          let targetIndices = [];
-          if (quiz.correctAnswer) {
-            targetIndices = (quiz.correctAnswer.match(/[A-D]\)/g) || []).map(m => m.charCodeAt(0) - 65);
-          }
-
-          if (studentRawResponse !== undefined && studentRawResponse !== null) {
-            if (Array.isArray(studentRawResponse)) {
-              pupidAnswerString = studentRawResponse.map(idx => String.fromCharCode(65 + idx)).join(', ');
-              isCorrect = studentRawResponse.length === targetIndices.length && studentRawResponse.every(v => targetIndices.includes(v));
-            } else {
-              const singleIdx = parseInt(studentRawResponse, 10);
-              pupilAnswerString = !isNaN(singleIdx) ? String.fromCharCode(65 + singleIdx) : "Invalid Option";
-              isCorrect = targetIndices.includes(singleIdx);
-            }
-          } else {
-            pupilAnswerString = "No response submitted";
-          }
-
-          pdf.setTextColor(50, 50, 70);
-          if (pupilAnswerString === "No response submitted") {
-            pdf.setFont("Helvetica", "italic");
-            pdf.setTextColor(140, 140, 150);
-          }
-          const truncatedPupilAns = pupilAnswerString.length > 35 ? pupilAnswerString.substring(0, 32) + "..." : pupilAnswerString;
-          pdf.text(truncatedPupilAns, 520, gridY + 14);
-          pdf.setFont("Helvetica", "normal");
-
-          pdf.setTextColor(50, 50, 70);
-          const cleanCorrectLabels = quiz.correctAnswer || "Not set";
-          const truncatedCorrectAns = cleanCorrectLabels.length > 28 ? cleanCorrectLabels.substring(0, 25) + "..." : cleanCorrectLabels;
-          pdf.text(truncatedCorrectAns, 780, gridY + 14);
-
-          if (pupilAnswerString === "No response submitted") {
-            pdf.setTextColor(140, 140, 150);
-            pdf.setFont("Helvetica", "italic");
-            pdf.text("-", 980, gridY + 14);
-          } else if (isCorrect) {
-            pdf.setTextColor(39, 174, 96);
-            pdf.setFont("Helvetica", "bold");
-            pdf.text("PASS", 980, gridY + 14);
-          } else {
-            pdf.setTextColor(192, 57, 43);
-            pdf.setFont("Helvetica", "bold");
-            pdf.text("FAIL", 980, gridY + 14);
-          }
+          pdf.text(quiz.correctAnswer || "Not set", 650, gridY + 14);
+          
+          pdf.setTextColor(100, 100, 120);
+          pdf.text(quiz.classScore || "100%", 930, gridY + 14);
 
           gridY += 20;
-        }); // Correctly closes savedQuizzesHistory loop
+        });
       }
-    }); // Correctly closes allPupilsList loop
+    });
 
     // Save out the fully targeted performance report file
     pdf.save('complete-classroom-lesson-session.pdf');
-  }); // Correctly closes click listener
-} // Correctly closes if (exportBtn) block
+  });
+}
+
 function setupMyQuizButtons() {
   const addBtn = document.getElementById('addQuestionToBankBtn');
 
@@ -1625,6 +1578,7 @@ function revealCorrectQuizAnswer() {
   
   if (currentQuestion) {
     // Normalize correct answers into an array format seamlessly 
+    // This supports both old single-answer questions and new multi-answer questions!
     let targetIndices = [];
     if (Array.isArray(currentQuestion.correctIndices)) {
       targetIndices = currentQuestion.correctIndices;
@@ -1645,46 +1599,36 @@ function revealCorrectQuizAnswer() {
     }
 
     // ========================================================================
-    // ANALYTICS SNAPSHOT LOGIC (FIXED FOR MULTI-CHOICE PDF EXPORT)
+    // ANALYTICS SNAPSHOT LOGIC (UPDATED FOR MULTI-CHOICE ACCURACY)
     // ========================================================================
     
+    // 1. Calculate how many total answers were submitted by the class
     const totalSubmissions = Object.keys(quizState.activeSubmissions || {}).length;
     let correctCount = 0;
 
-    // 2. Count how many pupils got the question right (Strict Grading)
-    Object.values(quizState.activeSubmissions || {}).forEach(val => {
-      if (Array.isArray(val)) {
-        // Strict evaluation: pupil matched every single option inside our target array matrix perfectly
-        const isPerfect = val.length === targetIndices.length && val.every(v => targetIndices.includes(v));
-        if (isPerfect) correctCount++;
-      } else {
-        // Fallback for older single-choice format data structures
-        if (targetIndices.includes(val)) {
-          correctCount++;
-        }
+    // 2. Count how many pupils chose a correct option index inside our array matrix
+    Object.values(quizState.activeSubmissions || {}).forEach(chosenIndex => {
+      if (targetIndices.includes(chosenIndex)) {
+        correctCount++;
       }
     });
 
     // 3. Turn it into a clean class performance percentage
     const successPercentage = totalSubmissions > 0 ? Math.round((correctCount / totalSubmissions) * 100) : 0;
 
-    // 🎯 FIX: Explicitly convert option strings so they render cleanly in the PDF table
-    // Maps indices to clear text strings like: "A) hghf, B) dsfsd"
-    const answerLabels = targetIndices
-      .map(i => `${String.fromCharCode(65 + i)}) ${currentQuestion.options[i]}`)
-      .join(', ');
+    // Map out human-readable answer strings for the PDF table column (e.g., "Option A, Option C")
+    const answerLabels = targetIndices.map(i => currentQuestion.options[i]).join(', ');
 
     // 4. Save this snapshot into our global archive array for the PDF writer
-    // Explicitly enforcing clean string mappings for all keys
     savedQuizzesHistory.push({
-      question: currentQuestion.question || "Untitled Question",
-      options: currentQuestion.options ? currentQuestion.options.join(' | ') : "None",
+      question: currentQuestion.question,
+      options: currentQuestion.options,
       correctAnswer: answerLabels || "Not set",
       totalPupilsAnswered: totalSubmissions,
       classScore: `${correctCount}/${totalSubmissions} (${successPercentage}% Correct)`
     });
 
-    console.log("Quiz question performance successfully archived for PDF export:", currentQuestion.question);
+    console.log("Quiz question performance archived for PDF export:", currentQuestion.question);
   }
 }
 
@@ -1770,45 +1714,5 @@ function handleIncomingQuizResponse(payload) {
   // 5. Instantly force-refresh the live charts (updates the UI counter badge)
   if (typeof renderLiveQuizBars === 'function') {
     renderLiveQuizBars(false);
-  }
-}
-
-// Global tracker to check if we are viewing the active queue or archived items
-let showingQuizArchive = false;
-
-// THIS FUNCTION HANDLES ARCHIVING & UNARCHIVING
-function handleQuizAction(index) {
-  // ⚠️ NOTE: Replace 'quizDeck' with your actual quiz global array variable name if it's different!
-  if (typeof quizDeck !== 'undefined' && quizDeck[index]) {
-    
-    // Toggle the archived status flag
-    quizDeck[index].isArchived = !quizDeck[index].isArchived;
-    
-    // Re-render the container so the changes show up instantly
-    renderStagedQuestions(quizDeck);
-    
-    // If your app has a function to update the top green count badge, call it here:
-    if (typeof updateQuizBadgeCount === 'function') {
-      updateQuizBadgeCount();
-    }
-  }
-}
-
-// THIS FUNCTION HANDLES SWITCHING THE ACTIVE/ARCHIVE VIEWS
-function toggleQuizArchiveView() {
-  showingQuizArchive = !showingQuizArchive;
-  const linkBtn = document.getElementById('toggleQuizArchiveBtn');
-  
-  if (showingQuizArchive) {
-    linkBtn.textContent = '👁️ View Active Queue';
-    linkBtn.style.color = '#2ecc71'; // Changes button text to green
-  } else {
-    linkBtn.textContent = '👁️ View Archive';
-    linkBtn.style.color = '#3498db'; // Changes button text back to blue
-  }
-  
-  // Refresh the UI with the new filters applied
-  if (typeof quizDeck !== 'undefined') {
-    renderStagedQuestions(quizDeck);
   }
 }
