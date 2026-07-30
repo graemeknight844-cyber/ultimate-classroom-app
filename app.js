@@ -1,5 +1,5 @@
 // ============================================================================
-// 1. SUPABASE SECURITY & CONNECTION
+// 1. SUPABASE SECURITY & CONNECTION1
 // ============================================================================
 const SUPABASE_URL = "https://wfnwjkuojshozhtnlror.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_pQvC4ZJv7e9-AL2lkp6upw_xpYa2twv";
